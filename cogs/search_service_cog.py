@@ -225,7 +225,7 @@ class FollowupButton(discord.ui.Button["SearchView"]):
 class RedoButton(discord.ui.Button["SearchView"]):
     def __init__(self, ctx, search_cog):
         super().__init__(
-            style=discord.ButtonStyle.danger,
+            style=discord.ButtonStyle.blurple,
             label="Redo",
             custom_id="redo_search_button",
         )

@@ -255,7 +255,7 @@ class RedoButton(discord.ui.Button["OptimizeView"]):
         self, converser_cog, image_service_cog, deletion_queue, custom_api_key=None
     ):
         super().__init__(
-            style=discord.ButtonStyle.danger,
+            style=discord.ButtonStyle.blurple,
             label="Retry",
             custom_id="redo_button_optimizer",
         )

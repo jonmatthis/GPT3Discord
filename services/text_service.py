@@ -894,7 +894,7 @@ class ConversationView(discord.ui.View):
 class EndConvoButton(discord.ui.Button["ConversationView"]):
     def __init__(self, converser_cog):
         super().__init__(
-            style=discord.ButtonStyle.danger,
+            style=discord.ButtonStyle.blurple,
             label="End Conversation",
             custom_id="conversation_end",
         )
@@ -929,7 +929,7 @@ class RedoButton(discord.ui.Button["ConversationView"]):
         self, converser_cog, model, from_ask_command, from_edit_command, custom_api_key
     ):
         super().__init__(
-            style=discord.ButtonStyle.danger,
+            style=discord.ButtonStyle.blurple,
             label="Retry",
             custom_id="conversation_redo",
         )
