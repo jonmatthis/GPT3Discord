@@ -1087,6 +1087,8 @@ class Model:
                 }
                 if self.openai_organization:
                     headers["OpenAI-Organization"] = self.openai_organization
+
+                #JSM NOTE - THIS IS WHERE THE MAGIC HAPPENS
                 async with session.post(
                     "https://api.openai.com/v1/chat/completions",
                     json=payload,
