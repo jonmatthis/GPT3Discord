@@ -90,7 +90,7 @@ class Models:
     GPT4_MODELS = [GPT4, GPT4_32]
     EDIT_MODELS = [EDIT, CODE_EDIT]
 
-    DEFAULT = DAVINCI
+    DEFAULT = TURBO
     LOW_USAGE_MODEL = CURIE
 
     # Tokens Mapping
