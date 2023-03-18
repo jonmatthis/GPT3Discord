@@ -104,12 +104,12 @@ class Settings_autocompleter:
         ]
         models.append("chatgpt")
 
-        # We won't let the user directly use these models but we will decide which one to use based on the status.
-        attempt_removes = ["gpt-3.5-turbo", "gpt-3.5-turbo-0301"]
-
-        for attempt_remove in attempt_removes:
-            if attempt_remove in models:
-                models.remove(attempt_remove)
+        # # We won't let the user directly use these models but we will decide which one to use based on the status.
+        # attempt_removes = ["gpt-3.5-turbo", "gpt-3.5-turbo-0301"]
+        #
+        # for attempt_remove in attempt_removes:
+        #     if attempt_remove in models:
+        #         models.remove(attempt_remove)
 
         return models
 
