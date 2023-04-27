@@ -1,16 +1,15 @@
-
-![Docker](https://github.com/Kav-K/GPT3Discord/actions/workflows/build-and-publish-docker.yml/badge.svg)  
-![PyPi](https://github.com/Kav-K/GPT3Discord/actions/workflows/pypi_upload.yml/badge.svg)  
-![Build](https://github.com/Kav-K/GPT3Discord/actions/workflows/build.yml/badge.svg)  
+![Docker](https://github.com/Kav-K/GPTDiscord/actions/workflows/build-and-publish-docker.yml/badge.svg)  
+![PyPi](https://github.com/Kav-K/GPTDiscord/actions/workflows/pypi_upload.yml/badge.svg)  
+![Build](https://github.com/Kav-K/GPTDiscord/actions/workflows/build.yml/badge.svg)  
   
 [![PyPi version](https://badgen.net/pypi/v/gpt3discord/)](https://pypi.org/project/gpt3discord)  
-[![Latest release](https://badgen.net/github/release/Kav-K/GPT3Discord)](https://github.com/Kav-K/GPT3Discord/releases)  
-[![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://GitHub.com/Kav-K/GPT3Discord/graphs/commit-activity)  
-[![GitHub license](https://img.shields.io/github/license/Kav-K/GPT3Discord)](https://github.com/Kav-K/GPT3Discord/blob/master/LICENSE)  
+[![Latest release](https://badgen.net/github/release/Kav-K/GPTDiscord)](https://github.com/Kav-K/GPTDiscord/releases)  
+[![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://GitHub.com/Kav-K/GPTDiscord/graphs/commit-activity)  
+[![GitHub license](https://img.shields.io/github/license/Kav-K/GPTDiscord)](https://github.com/Kav-K/GPTDiscord/blob/master/LICENSE)  
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](http://makeapullrequest.com)  
   
 # Overview
-A robust, all-in-one GPT3 interface for Discord. Chat just like ChatGPT right inside Discord! Generate beautiful AI art using DALL-E 2! Automatically moderate your server using AI! Upload documents, videos, and files to get AI-assisted insights! A thorough integration with permanent conversation memory powered by [Pinecone](https://www.pinecone.io/), automatic request retry, fault tolerance and reliability for servers of any scale, and much more.  
+A robust, all-in-one GPT interface for Discord. Chat just like ChatGPT right inside Discord! Generate beautiful AI art using DALL-E 2! Automatically moderate your server using AI! Upload documents, videos, and files to get AI-assisted insights! A thorough integration with permanent conversation memory powered by [Pinecone](https://www.pinecone.io/), automatic request retry, fault tolerance and reliability for servers of any scale, and much more.  
   
 SUPPORT SERVER FOR BOT SETUP: https://discord.gg/WvAHXDMS7Q (You can try out the bot here also in a limited fashion)  
 
@@ -19,53 +18,56 @@ SUPPORT SERVER FOR BOT SETUP: https://discord.gg/WvAHXDMS7Q (You can try out the
 - [Screenshots](#Screenshots)
 - [Features](#Features)
 - [Commands](#Commands)
-- [Installation](https://github.com/Kav-K/GPT3Discord/blob/main/detailed_guides/INSTALLATION.md)  
--- [DigitalOcean Droplet Guide](https://github.com/Kav-K/GPT3Discord/blob/main/detailed_guides/DROPLET-GUIDE.md) 
--- [OpenAI Token Guide](https://github.com/Kav-K/GPT3Discord/blob/main/detailed_guides/OPENAI-GUIDE.md)
-- [Permanent Memory](https://github.com/Kav-K/GPT3Discord/blob/main/detailed_guides/PERMANENT-MEMORY.md)    
-- [AI-Search](https://github.com/Kav-K/GPT3Discord/blob/main/detailed_guides/AI-SEARCH.md)  
-- [Custom Indexes](https://github.com/Kav-K/GPT3Discord/blob/main/detailed_guides/CUSTOM-INDEXES.md)  
-- [AI-Moderation](https://github.com/Kav-K/GPT3Discord/blob/main/detailed_guides/AI-MODERATION.md)  
-- [Translations](https://github.com/Kav-K/GPT3Discord/blob/main/detailed_guides/TRANSLATIONS.md)  
-- [User-Input API Keys](https://github.com/Kav-K/GPT3Discord/blob/main/detailed_guides/USER-INPUT-KEYS.md)  
-- [Permissions](https://github.com/Kav-K/GPT3Discord/blob/main/detailed_guides/PERMISSIONS.md)  
-- [Language Detection](https://github.com/Kav-K/GPT3Discord/blob/main/detailed_guides/LANGUAGE-DETECTION.md)
-- [Other Minor Features](https://github.com/Kav-K/GPT3Discord/blob/main/detailed_guides/OTHER-MINOR-FEATURES.md)  
+- [Installation](https://github.com/Kav-K/GPTDiscord/blob/main/detailed_guides/INSTALLATION.md)  
+-- [DigitalOcean Droplet Guide](https://github.com/Kav-K/GPTDiscord/blob/main/detailed_guides/DROPLET-GUIDE.md) 
+-- [OpenAI Token Guide](https://github.com/Kav-K/GPTDiscord/blob/main/detailed_guides/OPENAI-GUIDE.md)
+- [Internet Connected Chat](https://github.com/Kav-K/GPTDiscord/blob/main/detailed_guides/INTERNET-CONNECTED-CHAT.md)
+- [Permanent Memory](https://github.com/Kav-K/GPTDiscord/blob/main/detailed_guides/PERMANENT-MEMORY.md)    
+- [Multi-Modality](https://github.com/Kav-K/GPTDiscord/blob/main/detailed_guides/MULTI-MODALITY.md)
+- [AI-Search](https://github.com/Kav-K/GPTDiscord/blob/main/detailed_guides/AI-SEARCH.md)  
+- [Custom Indexes](https://github.com/Kav-K/GPTDiscord/blob/main/detailed_guides/CUSTOM-INDEXES.md)  
+- [AI-Moderation](https://github.com/Kav-K/GPTDiscord/blob/main/detailed_guides/AI-MODERATION.md)  
+- [Translations](https://github.com/Kav-K/GPTDiscord/blob/main/detailed_guides/TRANSLATIONS.md)  
+- [User-Input API Keys](https://github.com/Kav-K/GPTDiscord/blob/main/detailed_guides/USER-INPUT-KEYS.md)  
+- [Permissions](https://github.com/Kav-K/GPTDiscord/blob/main/detailed_guides/PERMISSIONS.md)  
+- [Language Detection](https://github.com/Kav-K/GPTDiscord/blob/main/detailed_guides/LANGUAGE-DETECTION.md)
+- [Other Minor Features](https://github.com/Kav-K/GPTDiscord/blob/main/detailed_guides/OTHER-MINOR-FEATURES.md)  
 
 
-# Screenshots  
-  
-<p align="center">  
-<img src="https://i.imgur.com/KeLpDgj.png"/>  
-<img  src="https://i.imgur.com/jLp1T0h.png"/>  
-<img src="https://i.imgur.com/cY4895V.png"/>  
-<img src="https://i.imgur.com/9leCixJ.png"/>  
-  
+# Screenshots
+<p align="center">
+Multi-Modality<br>
+<img src="https://i.imgur.com/LgJ58Ak.png"/><br>
+Internet-connected chat (Google + Wolfram + Link Crawling)<br>
+<img src="https://i.imgur.com/t9BDkJD.png"/><br>
+Regular Chat <br>
+<img src="https://i.imgur.com/KeLpDgj.png"/><br>
+Image generation and optimization<br>
+<img  src="https://i.imgur.com/jLp1T0h.png"/><br>
+AI-based moderation<br>
+<img src="https://i.imgur.com/cY4895V.png"/><br>
+Custom indexing and Document Q&A<br>
+<img src="https://i.imgur.com/9leCixJ.png"/><br>
 </p>  
   
 # Recent Notable Updates  
 
-- **Full-channel conversations** - Start a conversation in a full discord channel, retained across restarts, permanent memory. Set `use_threads` to False in `/gpt converse`!
-
-- **GPT4 API Integration** - GPT-4 is fully supported by our bot, if you're off the waitlist, you can put in your organization ID in the environment file and it will work out of the box and allow you to select gpt-4 models in /system settings and etc!
-  
-- **AI-Assisted Google Search** - Use GPT3 to browse the internet, you can search the internet for a query and GPT3 will look at the top websites for you automatically and formulate an answer to your query! You can also ask follow-up questions, this is kinda like BingGPT, but much better lol!  
-<p align="center"/>  
-<img src="https://i.imgur.com/YxkS0S5.png"/>  
+- **Multi-modality** - GPTDiscord now supports images sent to the bot during a conversation made with `/gpt converse`!
+<p align="center"/>
+<img src="https://i.imgur.com/OTJBm1W.png"/>
 </p>
-  
-- **CUSTOM INDEXES** - You can now upload files to your discord server and use them as a source of knowledge when asking GPT3 questions. You can also use webpage links as context, images, full documents, csvs, powerpoints, audio files, and even **youtube videos**! Read more in the 'Custom Indexes' section below. Here's an example below with a youtube video:
-  
-<p align="center"/>  
-<img src="https://i.imgur.com/H98UXad.png"/>  
-</p>  
+
+- **Internet-connected Chat!** - Chat with an instance of GPT3.5 or GPT-4 that's connected to google and wolfram alpha and can browse and access links that you send it!
+<p align="center"/>
+<img src="https://i.imgur.com/t9BDkJD.png"/>
+</p>
 
 # Features  
-- **Directly prompt GPT3 with `/gpt ask <prompt>`**  
+- **Directly prompt GPT with `/gpt ask <prompt>`**  
   
 - **Have long term, permanent conversations with the bot, just like chatgpt, with `/gpt converse`** - Conversations happen in threads that get automatically cleaned up!  
   
-- **Custom Indexes** - Use your own files, pdfs, txt files, websites, discord channel content as context when asking GPT3 questions!  
+- **Custom Indexes** - Use your own files, pdfs, txt files, websites, discord channel content as context when asking GPT questions!  
   
 - **AI-Assisted Google Search** - Speaks for itself!  
   
@@ -77,11 +79,13 @@ SUPPORT SERVER FOR BOT SETUP: https://discord.gg/WvAHXDMS7Q (You can try out the
   
 - **DeepL Translations** - Translate text with DeepL. `/translate <text>`  
   
-- **Redo Requests** - A simple button after the GPT3 response or DALL-E generation allows you to redo the initial prompt you asked. You can also redo conversation messages by just editing your message!  
+- **Redo Requests** - A simple button after the GPT response or DALL-E generation allows you to redo the initial prompt you asked. You can also redo conversation messages by just editing your message!  
   
 - **Automatic AI-Based Server Moderation** - Moderate your server automatically with AI!  
   
 - **Auto-retry on API errors** - Automatically resend failed requests to OpenAI's APIs!  
+
+- Set context-based pre-instructions per-user and per-channel
   
 - Automatically re-send your prompt and update the response in place if you edit your original prompt!  
  
@@ -101,11 +105,11 @@ These commands are grouped, so each group has a prefix but you can easily tab co
   
 `/help` - Display help text for the bot  
   
-### (Chat)GPT3 Commands  
+### (Chat)GPT Commands  
   
-`/gpt ask <prompt> <temp> <top_p> <frequency penalty> <presence penalty>` Ask the GPT3 Davinci 003 model a question. Optional overrides available  
+`/gpt ask <prompt> <temp> <top_p> <frequency penalty> <presence penalty>` Ask the GPT Davinci 003 model a question. Optional overrides available  
   
-`/gpt edit <instruction> <input> <temp> <top_p> <codex>` Use the bot to edit text using the given instructions for how to do it, currently an alpha openai feature so results might vary. Codex uses a model trained on code. Editing is currently free  
+`/gpt edit <instruction> <input> <temp> <top_p>` Use the bot to edit text using the given instructions for how to do it, currently an alpha openai feature so results might vary. Editing is currently free  
   
 `/gpt converse <opener> <opener_file> <private> <minimal>` - Start a conversation with the bot, like ChatGPT. Also use the option `use_threads:False` to start a conversation in a full discord channel!
   
@@ -126,6 +130,8 @@ These commands are grouped, so each group has a prefix but you can easily tab co
 - `minimal` - Start a conversation with the bot, like ChatGPT, with minimal context (saves tokens)  
   
 `/gpt end` - End a conversation with the bot.  
+
+`/gpt instruction mode:<set/get/clear> type:<user/channel> <instruction> <instruction_file>` - Set, get, or clear a custom instruction for the bot to use when asking questions.
   
 ### DALL-E2 Commands  
   
@@ -135,12 +141,14 @@ These commands are grouped, so each group has a prefix but you can easily tab co
 
 ### Search Commands
 
-`/search query:<prompt> scope:<number of sites to visit> nodes:<how deep gpt3 should think>` - Search the internet with GPT3 assistance!
+`/internet search:<prompt> scope:<number of sites to visit> nodes:<how deep gpt should think>` - Search the internet with GPT assistance!
 
 - The `scope` defines how many top level websites to visit during the search, capped at 6
 - `nodes` defines how many nodes inside the built index after webpage retrieval to use. 
 - Increasing the scope or the nodes will make the requests take longer and will be more expensive, but will usually be more accurate.
   
+`/internet chat search_scope:<number> use_gpt:<True/False>` - Start an internet-connected chat with GPT, connected to Google and Wolfram.
+
 ### Custom Indexes Commands  
   
 This bot supports per-user custom indexes. This means that users can upload files of their choosing, such as PDFs and ask GPT to answer questions based on those files.  
@@ -178,11 +186,11 @@ This bot supports per-user custom indexes. This means that users can upload file
 `/system clear-local` - Clear all the local dalleimages.  
   
 
-# Step-by-Step Guides for GPT3Discord  
+# Step-by-Step Guides for GPTDiscord  
   
-[**GPT3Discord Guides**](https://github.com/Kav-K/GPT3Discord/tree/main/detailed_guides)  
+[**GPTDiscord Guides**](https://github.com/Kav-K/GPTDiscord/tree/main/detailed_guides)  
   
-If you follow the link above, you will now get to detailed step-by-step guides that will help you to install and set up your GPT3Discord bot and its features quickly and easily. If you still run into problems or have suggestions for improving the guides, you can join the [**Discord-Server**](https://discord.gg/WvAHXDMS7Q) and we will try to help you. Keep in mind that the maintainers are volunteers and will try to help you on their schedule.  
+If you follow the link above, you will now get to detailed step-by-step guides that will help you to install and set up your GPTDiscord bot and its features quickly and easily. If you still run into problems or have suggestions for improving the guides, you can join the [**Discord-Server**](https://discord.gg/WvAHXDMS7Q) and we will try to help you. Keep in mind that the maintainers are volunteers and will try to help you on their schedule.  
 
   
 *The number and content of the guides is constantly adapted to current requirements.*  

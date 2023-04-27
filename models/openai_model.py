@@ -54,16 +54,11 @@ class Models:
     BABBAGE = "text-babbage-001"
     ADA = "text-ada-001"
 
-    # Code models
-    CODE_DAVINCI = "code-davinci-002"
-    CODE_CUSHMAN = "code-cushman-001"
-
     # Embedding models
     EMBEDDINGS = "text-embedding-ada-002"
 
     # Edit models
     EDIT = "text-davinci-edit-001"
-    CODE_EDIT = "code-davinci-edit-001"
 
     # ChatGPT Models
     TURBO = "gpt-3.5-turbo"
@@ -79,8 +74,6 @@ class Models:
         CURIE,
         BABBAGE,
         ADA,
-        CODE_DAVINCI,
-        CODE_CUSHMAN,
         TURBO,
         TURBO_DEV,
         GPT4,
@@ -88,9 +81,9 @@ class Models:
     ]
     CHATGPT_MODELS = [TURBO, TURBO_DEV]
     GPT4_MODELS = [GPT4, GPT4_32]
-    EDIT_MODELS = [EDIT, CODE_EDIT]
+    EDIT_MODELS = [EDIT]
 
-    DEFAULT = TURBO
+    DEFAULT = DAVINCI
     LOW_USAGE_MODEL = CURIE
 
     # Tokens Mapping
@@ -99,8 +92,6 @@ class Models:
         "text-curie-001": 2024,
         "text-babbage-001": 2024,
         "text-ada-001": 2024,
-        "code-davinci-002": 7900,
-        "code-cushman-001": 2024,
         TURBO: 4096,
         TURBO_DEV: 4096,
         GPT4: 8192,
@@ -234,6 +225,9 @@ class Model:
             if "num_conversation_lookback" in SETTINGS_DB
             else 5
         )
+        self.use_org = (
+            bool(SETTINGS_DB["use_org"]) if "use_org" in SETTINGS_DB else False
+        )
 
     def reset_settings(self):
         keys = [
@@ -253,6 +247,7 @@ class Model:
             "welcome_message_enabled",
             "num_static_conversation_items",
             "num_conversation_lookback",
+            "use_org",
         ]
         for key in keys:
             try:
@@ -283,6 +278,7 @@ class Model:
         self._top_p = None
         self._temp = None
         self._mode = None
+        self._use_org = None
         self.set_initial_state(usage_service)
 
         try:
@@ -303,12 +299,23 @@ class Model:
             "_hidden_attributes",
             "model_max_tokens",
             "openai_key",
+            "openai_organization",
+            "IMAGE_SAVE_PATH",
         ]
 
         self.openai_key = EnvService.get_openai_token()
         self.openai_organization = EnvService.get_openai_organization()
 
     # Use the @property and @setter decorators for all the self fields to provide value checking
+
+    @property
+    def use_org(self):
+        return self._use_org
+
+    @use_org.setter
+    def use_org(self, value):
+        self._use_org = value
+        SETTINGS_DB["use_org"] = value
 
     @property
     def num_static_conversation_items(self):
@@ -630,13 +637,19 @@ class Model:
                     completion_tokens=int(response["usage"]["completion_tokens"]),
                     gpt4=True,
                 )
+            if model and model in Models.EDIT_MODELS:
+                pass
             else:
                 await self.usage_service.update_usage(tokens_used)
         except Exception as e:
-            raise ValueError(
-                "The API returned an invalid response: "
-                + str(response["error"]["message"])
-            ) from e
+            traceback.print_exc()
+            if "error" in response:
+                raise ValueError(
+                    "The API returned an invalid response: "
+                    + str(response["error"]["message"])
+                ) from e
+            else:
+                raise ValueError("The API returned an invalid response") from e
 
     @backoff.on_exception(
         backoff.expo,
@@ -647,7 +660,9 @@ class Model:
         on_backoff=backoff_handler_http,
     )
     async def send_embedding_request(self, text, custom_api_key=None):
-        async with aiohttp.ClientSession(raise_for_status=True) as session:
+        async with aiohttp.ClientSession(
+            raise_for_status=True, timeout=aiohttp.ClientTimeout(total=300)
+        ) as session:
             payload = {
                 "model": Models.EMBEDDINGS,
                 "input": text,
@@ -656,6 +671,10 @@ class Model:
                 "Content-Type": "application/json",
                 "Authorization": f"Bearer {self.openai_key if not custom_api_key else custom_api_key}",
             }
+            self.use_org = True if "true" in str(self.use_org).lower() else False
+            if self.use_org:
+                if self.openai_organization:
+                    headers["OpenAI-Organization"] = self.openai_organization
             async with session.post(
                 "https://api.openai.com/v1/embeddings", json=payload, headers=headers
             ) as resp:
@@ -682,17 +701,18 @@ class Model:
         text=None,
         temp_override=None,
         top_p_override=None,
-        codex=False,
         custom_api_key=None,
     ):
         print(
-            f"The text about to be edited is [{text}] with instructions [{instruction}] codex [{codex}]"
+            f"The text about to be edited is [{text}] with instructions [{instruction}]"
         )
         print(f"Overrides -> temp:{temp_override}, top_p:{top_p_override}")
 
-        async with aiohttp.ClientSession(raise_for_status=False) as session:
+        async with aiohttp.ClientSession(
+            raise_for_status=False, timeout=aiohttp.ClientTimeout(total=300)
+        ) as session:
             payload = {
-                "model": Models.EDIT if codex is False else Models.CODE_EDIT,
+                "model": Models.EDIT,
                 "input": "" if text is None else text,
                 "instruction": instruction,
                 "temperature": self.temp if temp_override is None else temp_override,
@@ -702,11 +722,15 @@ class Model:
                 "Content-Type": "application/json",
                 "Authorization": f"Bearer {self.openai_key if not custom_api_key else custom_api_key}",
             }
+            self.use_org = True if "true" in str(self.use_org).lower() else False
+            if self.use_org:
+                if self.openai_organization:
+                    headers["OpenAI-Organization"] = self.openai_organization
             async with session.post(
                 "https://api.openai.com/v1/edits", json=payload, headers=headers
             ) as resp:
                 response = await resp.json()
-                await self.valid_text_request(response)
+                await self.valid_text_request(response, model=Models.EDIT)
                 return response
 
     @backoff.on_exception(
@@ -772,6 +796,10 @@ class Model:
                 "Content-Type": "application/json",
                 "Authorization": f"Bearer {self.openai_key if not custom_api_key else custom_api_key}",
             }
+            self.use_org = True if "true" in str(self.use_org).lower() else False
+            if self.use_org:
+                if self.openai_organization:
+                    headers["OpenAI-Organization"] = self.openai_organization
             async with session.post(
                 "https://api.openai.com/v1/completions", json=payload, headers=headers
             ) as resp:
@@ -817,6 +845,10 @@ class Model:
                 "max_tokens": max_tokens,
             }
             headers = {"Authorization": f"Bearer {self.openai_key}"}
+            self.use_org = True if "true" in str(self.use_org).lower() else False
+            if self.use_org:
+                if self.openai_organization:
+                    headers["OpenAI-Organization"] = self.openai_organization
             async with session.post(
                 "https://api.openai.com/v1/completions", json=payload, headers=headers
             ) as resp:
@@ -873,8 +905,7 @@ class Model:
                 # If this is the first message, it is the context prompt.
                 messages.append(
                     {
-                        "role": "system",
-                        "name": "Instructor",
+                        "role": "user",
                         "content": message.text,
                     }
                 )
@@ -884,34 +915,37 @@ class Model:
                 text = message.text.replace(bot_name, "")
                 text = text.replace("<|endofstatement|>", "")
                 messages.append(
-                    {"role": "assistant", "name": bot_name_clean, "content": text}
+                    {
+                        "role": "assistant",
+                        "content": text,
+                    }  # TODO add back the assistant's name when the API is fixed..
                 )
             else:
                 try:
-                    print("In first block The message text is ->" + message.text)
                     if (
                         message.text.strip()
                         .lower()
                         .startswith("this conversation has some context from earlier")
                     ):
-                        print("Hit the exception clause")
                         raise Exception("This is a context message")
 
                     username = re.search(r"(?<=\n)(.*?)(?=:)", message.text).group()
                     username_clean = self.cleanse_username(username)
                     text = message.text.replace(f"{username}:", "")
+                    # Strip whitespace just from the right side of the string
+                    text = text.rstrip()
                     text = text.replace("<|endofstatement|>", "")
                     messages.append(
                         {"role": "user", "name": username_clean, "content": text}
                     )
-                    print("Got to here")
                 except Exception:
-                    print("In second block The message text is ->" + message.text)
                     text = message.text.replace("<|endofstatement|>", "")
                     messages.append({"role": "system", "content": text})
 
         print(f"Messages -> {messages}")
-        async with aiohttp.ClientSession(raise_for_status=False) as session:
+        async with aiohttp.ClientSession(
+            raise_for_status=False, timeout=aiohttp.ClientTimeout(total=300)
+        ) as session:
             payload = {
                 "model": self.model if not model else model,
                 "messages": messages,
@@ -928,8 +962,10 @@ class Model:
             headers = {
                 "Authorization": f"Bearer {self.openai_key if not custom_api_key else custom_api_key}"
             }
-            if self.openai_organization:
-                headers["OpenAI-Organization"] = self.openai_organization
+            self.use_org = True if "true" in str(self.use_org).lower() else False
+            if self.use_org:
+                if self.openai_organization:
+                    headers["OpenAI-Organization"] = self.openai_organization
 
             async with session.post(
                 "https://api.openai.com/v1/chat/completions",
@@ -939,7 +975,9 @@ class Model:
                 response = await resp.json()
                 # print(f"Payload -> {payload}")
                 # Parse the total tokens used for this request and response pair from the response
-                await self.valid_text_request(response)
+                await self.valid_text_request(
+                    response, model=self.model if model is None else model
+                )
                 print(f"Response -> {response}")
 
                 return response
@@ -1010,15 +1048,30 @@ class Model:
         stop=None,
         custom_api_key=None,
         is_chatgpt_request=False,
-    ) -> (
-        Tuple[dict, bool]
+        system_instruction=None,
     ):  # The response, and a boolean indicating whether or not the context limit was reached.
         # Validate that  all the parameters are in a good state before we send the request
 
         if not max_tokens_override:
-            if model:
+            if (
+                model
+                and model not in Models.GPT4_MODELS
+                and model not in Models.CHATGPT_MODELS
+            ):
                 max_tokens_override = Models.get_max_tokens(model) - tokens
 
+        messages = [{"role": "user", "content": prompt}]
+        # modify prompt if a system instruction is set
+        if system_instruction and is_chatgpt_request:
+            messages = [
+                {"role": "system", "content": system_instruction},
+                {"role": "user", "content": prompt},
+            ]
+        elif system_instruction:
+            prompt = f"{system_instruction} {prompt}"
+
+        if system_instruction:
+            print(f"The instruction added to the prompt will be {system_instruction}")
         print(f"The prompt about to be sent is {prompt}")
         print(
             f"Overrides -> temp:{temp_override}, top_p:{top_p_override} frequency:{frequency_penalty_override}, presence:{presence_penalty_override}, model:{model if model else 'none'}, stop:{stop}"
@@ -1026,7 +1079,9 @@ class Model:
 
         # Non-ChatGPT simple completion models.
         if not is_chatgpt_request:
-            async with aiohttp.ClientSession(raise_for_status=False) as session:
+            async with aiohttp.ClientSession(
+                raise_for_status=False, timeout=aiohttp.ClientTimeout(total=300)
+            ) as session:
                 payload = {
                     "model": self.model if model is None else model,
                     "prompt": prompt,
@@ -1051,6 +1106,11 @@ class Model:
                 headers = {
                     "Authorization": f"Bearer {self.openai_key if not custom_api_key else custom_api_key}"
                 }
+                self.use_org = True if "true" in str(self.use_org).lower() else False
+                if self.use_org:
+                    if self.openai_organization:
+                        headers["OpenAI-Organization"] = self.openai_organization
+
                 async with session.post(
                     "https://api.openai.com/v1/completions",
                     json=payload,
@@ -1066,10 +1126,12 @@ class Model:
 
                     return response
         else:  # ChatGPT/GPT4 Simple completion
-            async with aiohttp.ClientSession(raise_for_status=False) as session:
+            async with aiohttp.ClientSession(
+                raise_for_status=False, timeout=aiohttp.ClientTimeout(total=300)
+            ) as session:
                 payload = {
                     "model": self.model if not model else model,
-                    "messages": [{"role": "user", "content": prompt}],
+                    "messages": messages,
                     "stop": "" if stop is None else stop,
                     "temperature": self.temp
                     if temp_override is None
@@ -1085,10 +1147,10 @@ class Model:
                 headers = {
                     "Authorization": f"Bearer {self.openai_key if not custom_api_key else custom_api_key}"
                 }
-                if self.openai_organization:
-                    headers["OpenAI-Organization"] = self.openai_organization
-
-                #JSM NOTE - THIS IS WHERE THE MAGIC HAPPENS
+                self.use_org = True if "true" in str(self.use_org).lower() else False
+                if self.use_org:
+                    if self.openai_organization:
+                        headers["OpenAI-Organization"] = self.openai_organization
                 async with session.post(
                     "https://api.openai.com/v1/chat/completions",
                     json=payload,
@@ -1139,9 +1201,9 @@ class Model:
     ) -> tuple[File, list[Any]]:
         # Validate that  all the parameters are in a good state before we send the request
         words = len(prompt.split(" "))
-        if words < 3 or words > 75:
+        if words < 1 or words > 75:
             raise ValueError(
-                "Prompt must be greater than 3 words and less than 75, it is currently "
+                "Prompt must be greater than 1 word and less than 75, it is currently "
                 + str(words)
             )
 
@@ -1156,7 +1218,14 @@ class Model:
                 "Content-Type": "application/json",
                 "Authorization": f"Bearer {self.openai_key if not custom_api_key else custom_api_key}",
             }
-            async with aiohttp.ClientSession(raise_for_status=True) as session:
+            self.use_org = True if "true" in str(self.use_org).lower() else False
+            if self.use_org:
+                if self.openai_organization:
+                    headers["OpenAI-Organization"] = self.openai_organization
+
+            async with aiohttp.ClientSession(
+                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=300)
+            ) as session:
                 async with session.post(
                     "https://api.openai.com/v1/images/generations",
                     json=payload,
@@ -1165,7 +1234,9 @@ class Model:
                     response = await resp.json()
 
         else:
-            async with aiohttp.ClientSession(raise_for_status=True) as session:
+            async with aiohttp.ClientSession(
+                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=300)
+            ) as session:
                 data = aiohttp.FormData()
                 data.add_field("n", str(self.num_images))
                 data.add_field("size", self.image_size)

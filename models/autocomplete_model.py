@@ -78,6 +78,7 @@ class Settings_autocompleter:
                 )
             ],
             "type": ["warn", "delete"],
+            "use_org": ["True", "False"],
         }
         options = values.get(ctx.options["parameter"], [])
         if options:
@@ -95,6 +96,11 @@ class Settings_autocompleter:
         ]
         return models
 
+    async def get_index_and_search_models(
+        ctx: discord.AutocompleteContext,
+    ):
+        return ["gpt-3.5-turbo", "gpt-4"]
+
     async def get_converse_models(
         ctx: discord.AutocompleteContext,
     ):
@@ -102,22 +108,12 @@ class Settings_autocompleter:
         models = [
             value for value in Models.TEXT_MODELS if value.startswith(ctx.value.lower())
         ]
-        models.append("chatgpt")
-
-        # # We won't let the user directly use these models but we will decide which one to use based on the status.
-        # attempt_removes = ["gpt-3.5-turbo", "gpt-3.5-turbo-0301"]
-        #
-        # for attempt_remove in attempt_removes:
-        #     if attempt_remove in models:
-        #         models.remove(attempt_remove)
-
         return models
 
     async def get_value_moderations(
         ctx: discord.AutocompleteContext,
     ):  # Behaves a bit weird if you go back and edit the parameter without typing in a new command
         """gets valid values for the type option"""
-        print(f"The value is {ctx.value}")
         return [
             value
             for value in ModerationOptions.OPTIONS

@@ -11,15 +11,16 @@ import aiofiles
 import json
 
 import discord
-from discord import ClientUser
+from discord.ext import pages
 
 from models.deepl_model import TranslationModel
 from models.embed_statics_model import EmbedStatics
+from models.image_understanding_model import ImageUnderstandingModel
 from models.openai_model import Override
 from services.environment_service import EnvService
 from services.message_queue_service import Message
 from services.moderations_service import Moderation
-from models.user_model import Thread, EmbeddedConversationItem
+from models.user_model import Thread, EmbeddedConversationItem, Instruction
 from collections import defaultdict
 from sqlitedict import SqliteDict
 
@@ -43,6 +44,10 @@ CHAT_BYPASS_ROLES = EnvService.get_bypass_roles()
 PRE_MODERATE = EnvService.get_premoderate()
 FORCE_ENGLISH = EnvService.get_force_english()
 BOT_TAGGABLE = EnvService.get_bot_is_taggable()
+CHANNEL_CHAT_ROLES = EnvService.get_channel_chat_roles()
+BOT_TAGGABLE_ROLES = EnvService.get_gpt_roles()
+CHANNEL_INSTRUCTION_ROLES = EnvService.get_channel_instruction_roles()
+image_understanding_model = ImageUnderstandingModel()
 
 #
 # Obtain the Moderation table and the General table, these are two SQLite tables that contain
@@ -68,7 +73,6 @@ except Exception as e:
     raise e
 
 BOT_NAME = EnvService.get_custom_bot_name()
-BOT_TAGGABLE_ROLES = EnvService.get_gpt_roles()
 
 
 class GPT3ComCon(discord.Cog, name="GPT3ComCon"):
@@ -118,6 +122,7 @@ class GPT3ComCon(discord.Cog, name="GPT3ComCon"):
         self.awaiting_thread_responses = []
         self.conversation_threads = {}
         self.full_conversation_history = defaultdict(list)
+        self.instructions = defaultdict(list)
         self.summarize = self.model.summarize_conversations
 
         # Pinecone data
@@ -252,6 +257,13 @@ class GPT3ComCon(discord.Cog, name="GPT3ComCon"):
                 self.conversation_thread_owners = pickle.load(f)
                 print("Loaded conversation_thread_owners")
 
+            with open(
+                EnvService.save_path() / "pickles" / "instructions.pickle",
+                "rb",
+            ) as f:
+                self.instructions = pickle.load(f)
+                print("Loaded instructions")
+
             # Fail if all three weren't loaded
             assert self.full_conversation_history is not {}
             assert self.conversation_threads is not {}
@@ -286,6 +298,7 @@ class GPT3ComCon(discord.Cog, name="GPT3ComCon"):
                     self.full_conversation_history,
                     self.conversation_threads,
                     self.conversation_thread_owners,
+                    self.instructions,
                 )
             )
 
@@ -350,7 +363,7 @@ class GPT3ComCon(discord.Cog, name="GPT3ComCon"):
             ctx, discord.ApplicationContext
         ):  # When the conversation is ended from the slash command
             await ctx.respond(
-                "You have ended the conversation with GPT3. Start a conversation with /gpt converse",
+                "You have ended the conversation with GPT. Start a conversation with /gpt converse",
                 ephemeral=True,
                 delete_after=10,
             )
@@ -358,13 +371,13 @@ class GPT3ComCon(discord.Cog, name="GPT3ComCon"):
             ctx, discord.Interaction
         ):  # When the user ends the conversation from the button
             await ctx.response.send_message(
-                "You have ended the conversation with GPT3. Start a conversation with /gpt converse",
+                "You have ended the conversation with GPT. Start a conversation with /gpt converse",
                 ephemeral=True,
                 delete_after=10,
             )
         else:  # The case for when the user types "end" in the channel
             await ctx.reply(
-                "You have ended the conversation with GPT3. Start a conversation with /gpt converse",
+                "You have ended the conversation with GPT. Start a conversation with /gpt converse",
                 delete_after=10,
             )
 
@@ -499,14 +512,8 @@ class GPT3ComCon(discord.Cog, name="GPT3ComCon"):
                     response_message = await ctx.channel.send(chunk)
         return response_message
 
-    async def paginate_embed(self, response_text, codex, prompt=None, instruction=None):
-        """Given a response text make embed pages and return a list of the pages. Codex makes it a codeblock in the embed"""
-        if codex:  # clean codex input
-            response_text = response_text.replace("```", "")
-            response_text = response_text.replace(f"***Prompt: {prompt}***\n", "")
-            response_text = response_text.replace(
-                f"***Instruction: {instruction}***\n\n", ""
-            )
+    async def paginate_embed(self, response_text):
+        """Given a response text make embed pages and return a list of the pages."""
 
         response_text = [
             response_text[i : i + self.EMBED_CUTOFF]
@@ -519,15 +526,13 @@ class GPT3ComCon(discord.Cog, name="GPT3ComCon"):
             if not first:
                 page = discord.Embed(
                     title=f"Page {count}",
-                    description=chunk
-                    if not codex
-                    else f"***Prompt:{prompt}***\n***Instruction:{instruction:}***\n```python\n{chunk}\n```",
+                    description=chunk,
                 )
                 first = True
             else:
                 page = discord.Embed(
                     title=f"Page {count}",
-                    description=chunk if not codex else f"```python\n{chunk}\n```",
+                    description=chunk,
                 )
             pages.append(page)
 
@@ -588,7 +593,7 @@ class GPT3ComCon(discord.Cog, name="GPT3ComCon"):
                 >= self.model.max_conversation_length
             ):
                 await message.reply(
-                    "You have reached the maximum conversation length. You have ended the conversation with GPT3, and it has ended."
+                    "You have reached the maximum conversation length. You have ended the conversation with GPT, and it has ended."
                 )
                 await self.end_conversation(message, conversation_limit=True)
                 return True
@@ -681,9 +686,12 @@ class GPT3ComCon(discord.Cog, name="GPT3ComCon"):
                 await message.delete()
                 return
 
+        # Get the first file in the message if there is one
+        file = message.attachments[0] if len(message.attachments) > 0 else None
+
         # Process the message if the user is in a conversation
         if await TextService.process_conversation_message(
-            self, message, USER_INPUT_API_KEYS, USER_KEY_DB
+            self, message, USER_INPUT_API_KEYS, USER_KEY_DB, file=file
         ):
             original_message[message.author.id] = message.id
 
@@ -711,12 +719,7 @@ class GPT3ComCon(discord.Cog, name="GPT3ComCon"):
 
             await self.ask_command(
                 message,
-                prompt,
-                False,
-                None,
-                None,
-                None,
-                None,
+                prompt=prompt,
                 from_message_context=True,
             )
 
@@ -771,20 +774,20 @@ class GPT3ComCon(discord.Cog, name="GPT3ComCon"):
         )
         embed.add_field(
             name="/gpt ask",
-            value="Ask GPT3 something. Be clear, long, and concise in your prompt. Don't waste tokens.",
+            value="Ask GPT something. Be clear, long, and concise in your prompt. Don't waste tokens.",
             inline=False,
         )
         embed.add_field(
             name="/gpt edit",
-            value="Use GPT3 to edit a piece of text given an instruction",
+            value="Use GPT to edit a piece of text given an instruction",
             inline=False,
         )
         embed.add_field(
-            name="/gpt converse", value="Start a conversation with GPT3", inline=False
+            name="/gpt converse", value="Start a conversation with GPT", inline=False
         )
         embed.add_field(
             name="/gpt end",
-            value="End a conversation with GPT3. You can also type `end` in the conversation.",
+            value="End a conversation with GPT. You can also type `end` in the conversation.",
             inline=False,
         )
         embed.add_field(
@@ -870,18 +873,84 @@ class GPT3ComCon(discord.Cog, name="GPT3ComCon"):
         )
         await ctx.respond(embed=embed)
 
+    async def instruction_command(
+        self,
+        ctx: discord.ApplicationContext,
+        mode: str,
+        type: str,
+        instruction: str,
+        instruction_file: discord.Attachment,
+        private: bool,
+    ):
+        """Command to let users set their own system prompt or add one to the channel"""
+
+        await ctx.defer(ephemeral=private)
+
+        if mode == "set" and not (instruction or instruction_file):
+            await ctx.respond(
+                "You must include either an **instruction** or an **instruction file**"
+            )
+            return
+
+        # Check if any of the message author's role names are in CHANNEL_INSTRUCTION_ROLES, if not, continue as user
+        if type == "channel" and mode in ["set", "clear"]:
+            if CHANNEL_INSTRUCTION_ROLES != [None] and not any(
+                role.name.lower() in CHANNEL_INSTRUCTION_ROLES
+                for role in ctx.author.roles
+            ):
+                await ctx.respond(
+                    "You don't have permisson to set the channel instruction. Defaulting to setting a user instruction"
+                )
+                type = "user"
+
+        if instruction_file:
+            bytestring = await instruction_file.read()
+            file_instruction = bytestring.decode("utf-8")
+        if instruction and instruction_file:
+            instruction = f"{file_instruction}\n\n{instruction}"
+        elif instruction_file:
+            instruction = file_instruction
+
+        # If premoderation is enabled, check
+        if PRE_MODERATE:
+            if await Moderation.simple_moderate_and_respond(instruction, ctx):
+                return
+
+        if type == "channel":
+            set_id = ctx.channel.id
+        else:
+            set_id = ctx.user.id
+
+        if mode == "set":
+            self.instructions[set_id] = Instruction(set_id, instruction)
+            await ctx.respond(f"The system instruction is set for **{type}**")
+        elif mode == "get":
+            try:
+                instruction = self.instructions[set_id].prompt
+                embed_pages = await self.paginate_embed(instruction)
+                paginator = pages.Paginator(
+                    pages=embed_pages, timeout=None, author_check=False
+                )
+                await paginator.respond(ctx.interaction)
+            except Exception:
+                await ctx.respond("There is no instruction set")
+        elif mode == "clear":
+            self.instructions.pop(set_id)
+            await ctx.respond(f"The instruction has been removed for **{type}**")
+
     async def ask_command(
         self,
         ctx: discord.ApplicationContext,
         prompt: str,
-        private: bool,
-        temperature: float,
-        top_p: float,
-        frequency_penalty: float,
-        presence_penalty: float,
+        private: bool = False,
+        temperature: float = None,
+        top_p: float = None,
+        frequency_penalty: float = None,
+        presence_penalty: float = None,
         from_ask_action=None,
         from_other_action=None,
         from_message_context=None,
+        prompt_file: discord.Attachment = None,
         model=None,
     ):
         """Command handler. Requests and returns a generation with no extras to the completion endpoint
@@ -898,6 +967,21 @@ class GPT3ComCon(discord.Cog, name="GPT3ComCon"):
         is_context = isinstance(ctx, discord.ApplicationContext)
 
         user = ctx.user if is_context else ctx.author
+
+        if not (prompt or prompt_file):
+            await ctx.respond(
+                "You must include either a **prompt** or a **prompt file**"
+            )
+            return
+
+        if prompt_file:
+            bytestring = await prompt_file.read()
+            file_prompt = bytestring.decode("utf-8")
+        if prompt and prompt_file:
+            prompt = f"{file_prompt}\n\n{prompt}"
+        elif prompt_file:
+            prompt = file_prompt
+
         prompt = await self.mention_to_username(ctx, prompt.strip())
 
         if len(prompt) < self.model.prompt_min_length:
@@ -944,7 +1028,6 @@ class GPT3ComCon(discord.Cog, name="GPT3ComCon"):
         private: bool,
         temperature: float,
         top_p: float,
-        codex: bool,
     ):
         """Command handler. Requests and returns a generation with no extras to the edit endpoint
 
@@ -954,7 +1037,6 @@ class GPT3ComCon(discord.Cog, name="GPT3ComCon"):
             text (str): The text that should be modified
             temperature (float): Sets the temperature override
             top_p (float): Sets the top p override
-            codex (bool): Enables the codex edit model
         """
         user = ctx.user
 
@@ -990,7 +1072,6 @@ class GPT3ComCon(discord.Cog, name="GPT3ComCon"):
             overrides=overrides,
             instruction=instruction,
             from_edit_command=True,
-            codex=codex,
             custom_api_key=user_api_key,
         )
 
@@ -1064,7 +1145,20 @@ class GPT3ComCon(discord.Cog, name="GPT3ComCon"):
                 target = thread
             else:
                 embed_title = f"{user.name}'s conversation with GPT"
-                message_embed = discord.Embed(title=embed_title, color=0x808080)
+                message_embed = discord.Embed(
+                    title=embed_title,
+                    description=f"**Model**: {self.model.model if not model else model}",
+                    color=0x808080,
+                )
+                message_embed.set_thumbnail(url="https://i.imgur.com/asA13vI.png")
+                footer_text = (
+                    "Regular Chat"
+                    if not image_understanding_model.get_is_usable()
+                    else "Regular Chat, Multi-Modal"
+                )
+                message_embed.set_footer(
+                    text=footer_text, icon_url="https://i.imgur.com/asA13vI.png"
+                )
                 message_thread = await ctx.send(embed=message_embed)
                 thread = await message_thread.create_thread(
                     name=user.name + "'s conversation with GPT",
@@ -1073,6 +1167,24 @@ class GPT3ComCon(discord.Cog, name="GPT3ComCon"):
                 await ctx.respond("Conversation started.")
                 target = thread
         else:
+            # Check if this current channel is already in a conversation
+            if ctx.channel.id in self.conversation_threads:
+                await ctx.respond(
+                    "There is already a conversation in this channel. Please finish that conversation before starting a new one."
+                )
+                return
+
+            # Check if the user is permitted to start a conversation in full channels
+            # check if any of the user role names match CHANNEL_CHAT_ROLES
+            if CHANNEL_CHAT_ROLES and CHANNEL_CHAT_ROLES != [None]:
+                if not any(
+                    role.name.lower() in CHANNEL_CHAT_ROLES for role in ctx.user.roles
+                ):
+                    await ctx.respond(
+                        "You are not permitted to start a conversation in this channel."
+                    )
+                    return
+
             target = ctx.channel
             if private:
                 embed_title = f"{user.name}'s private conversation with GPT"
@@ -1092,59 +1204,53 @@ class GPT3ComCon(discord.Cog, name="GPT3ComCon"):
             temperature, top_p, frequency_penalty, presence_penalty
         )
 
-        if opener:
-            opener = await self.mention_to_username(ctx, opener)
-
-        if not opener and not opener_file:
-            user_id_normalized = user.id
-        else:
+        if opener or opener_file:
             user_id_normalized = ctx.author.id
-            if not opener_file:
-                pass
+        else:
+            user_id_normalized = user.id
+        if opener_file:
+            if not opener_file.endswith((".txt", ".json")):
+                opener_file = (
+                    None  # Just start a regular thread if the file fails to load
+                )
             else:
-                if not opener_file.endswith((".txt", ".json")):
+                # Load the file and read it into opener
+                try:
+                    opener_file = re.sub(
+                        ".+(?=[\\//])", "", opener_file
+                    )  # remove paths from the opener file
+                    opener_file = EnvService.find_shared_file(
+                        f"openers{separator}{opener_file}"
+                    )
+                    opener_file = await self.load_file(opener_file, ctx)
+                    try:  # Try opening as json, if it fails it'll just pass the whole txt or json to the opener
+                        opener_file = json.loads(opener_file)
+                        temperature = opener_file.get("temperature", None)
+                        top_p = opener_file.get("top_p", None)
+                        frequency_penalty = opener_file.get("frequency_penalty", None)
+                        presence_penalty = opener_file.get("presence_penalty", None)
+                        self.conversation_threads[target.id].set_overrides(
+                            temperature, top_p, frequency_penalty, presence_penalty
+                        )
+                        if (
+                            not opener
+                        ):  # if we only use opener_file then only pass on opener_file for the opening prompt
+                            opener = opener_file.get("text", "error getting text")
+                        else:
+                            opener = (
+                                opener_file.get("text", "error getting text") + opener
+                            )
+                    except Exception:  # Parse as just regular text
+                        if not opener:
+                            opener = opener_file
+                        else:
+                            opener = opener_file + opener
+                except Exception:
                     opener_file = (
                         None  # Just start a regular thread if the file fails to load
                     )
-                else:
-                    # Load the file and read it into opener
-                    try:
-                        opener_file = re.sub(
-                            ".+(?=[\\//])", "", opener_file
-                        )  # remove paths from the opener file
-                        opener_file = EnvService.find_shared_file(
-                            f"openers{separator}{opener_file}"
-                        )
-                        opener_file = await self.load_file(opener_file, ctx)
-                        try:  # Try opening as json, if it fails it'll just pass the whole txt or json to the opener
-                            opener_file = json.loads(opener_file)
-                            temperature = opener_file.get("temperature", None)
-                            top_p = opener_file.get("top_p", None)
-                            frequency_penalty = opener_file.get(
-                                "frequency_penalty", None
-                            )
-                            presence_penalty = opener_file.get("presence_penalty", None)
-                            self.conversation_threads[target.id].set_overrides(
-                                temperature, top_p, frequency_penalty, presence_penalty
-                            )
-                            if (
-                                not opener
-                            ):  # if we only use opener_file then only pass on opener_file for the opening prompt
-                                opener = opener_file.get("text", "error getting text")
-                            else:
-                                opener = (
-                                    opener_file.get("text", "error getting text")
-                                    + opener
-                                )
-                        except Exception:  # Parse as just regular text
-                            if not opener:
-                                opener = opener_file
-                            else:
-                                opener = opener_file + opener
-                    except Exception:
-                        opener_file = None  # Just start a regular thread if the file fails to load
 
-        # Append the starter text for gpt3 to the user's history so it gets concatenated with the prompt later
+        # Append the starter text for gpt to the user's history so it gets concatenated with the prompt later
         if minimal or opener_file or opener:
             self.conversation_threads[target.id].history.append(
                 EmbeddedConversationItem(self.CONVERSATION_STARTER_TEXT_MINIMAL, 0)
@@ -1168,6 +1274,8 @@ class GPT3ComCon(discord.Cog, name="GPT3ComCon"):
 
         # send opening
         if opener:
+            self.conversation_threads[target.id].has_opener = True
+            opener = await self.mention_to_username(ctx, opener)
             target_message = await target.send(
                 embed=EmbedStatics.generate_opener_embed(opener)
             )
@@ -1277,12 +1385,7 @@ class GPT3ComCon(discord.Cog, name="GPT3ComCon"):
         prompt = await self.mention_to_username(ctx, message.content)
         await self.ask_command(
             ctx,
-            prompt,
-            private=False,
-            temperature=None,
-            top_p=None,
-            frequency_penalty=None,
-            presence_penalty=None,
+            prompt=prompt,
             from_ask_action=prompt,
         )
 
@@ -1306,12 +1409,7 @@ class GPT3ComCon(discord.Cog, name="GPT3ComCon"):
 
         await self.ask_command(
             ctx,
-            prompt,
-            private=False,
-            temperature=None,
-            top_p=None,
-            frequency_penalty=None,
-            presence_penalty=None,
+            prompt=prompt,
             from_other_action=from_other_action,
         )
 
@@ -1336,11 +1434,6 @@ class GPT3ComCon(discord.Cog, name="GPT3ComCon"):
         await self.ask_command(
             ctx,
             prompt=prompt,
-            private=False,
-            temperature=None,
-            top_p=None,
-            frequency_penalty=None,
-            presence_penalty=None,
             from_other_action=from_other_action,
         )
 
@@ -1366,12 +1459,7 @@ class GPT3ComCon(discord.Cog, name="GPT3ComCon"):
 
         await self.ask_command(
             ctx,
-            prompt,
-            private=False,
-            temperature=None,
-            top_p=None,
-            frequency_penalty=None,
-            presence_penalty=None,
+            prompt=prompt,
             from_other_action=from_other_action,
         )
 

@@ -1,9 +1,12 @@
+import datetime
 import traceback
 from pathlib import Path
 
 import discord
+import os
 
 from models.embed_statics_model import EmbedStatics
+from services.deletion_service import Deletion
 from services.environment_service import EnvService
 from services.moderations_service import Moderation
 from services.text_service import TextService
@@ -12,6 +15,9 @@ from models.index_model import Index_handler
 USER_INPUT_API_KEYS = EnvService.get_user_input_api_keys()
 USER_KEY_DB = EnvService.get_api_db()
 PRE_MODERATE = EnvService.get_premoderate()
+GITHUB_TOKEN = EnvService.get_github_token()
+if GITHUB_TOKEN:
+    os.environ["GITHUB_TOKEN"] = GITHUB_TOKEN
 
 
 class IndexService(discord.Cog, name="IndexService"):
@@ -21,10 +27,71 @@ class IndexService(discord.Cog, name="IndexService"):
         self,
         bot,
         usage_service,
+        deletion_queue,
     ):
         super().__init__()
         self.bot = bot
         self.index_handler = Index_handler(bot, usage_service)
+        self.thread_awaiting_responses = []
+        self.deletion_queue = deletion_queue
+
+    @discord.Cog.listener()
+    async def on_message(self, message):
+        # Check for self
+        if message.author == self.bot.user:
+            return
+
+        # Check if the message is from a guild.
+        if not message.guild:
+            return
+
+        if message.content.strip().startswith("~"):
+            return
+
+        if message.channel.id in self.thread_awaiting_responses:
+            resp_message = await message.reply(
+                "Please wait for the agent to respond to a previous message first!"
+            )
+            deletion_time = datetime.datetime.now() + datetime.timedelta(seconds=5)
+            deletion_time = deletion_time.timestamp()
+
+            original_deletion_message = Deletion(message, deletion_time)
+            deletion_message = Deletion(resp_message, deletion_time)
+            await self.deletion_queue.put(deletion_message)
+            await self.deletion_queue.put(original_deletion_message)
+            return
+
+        # Pre moderation
+        if PRE_MODERATE:
+            if await Moderation.simple_moderate_and_respond(message.content, message):
+                await message.delete()
+                return
+
+        prompt = message.content.strip()
+
+        if await self.index_handler.get_is_in_index_chat(message):
+            self.thread_awaiting_responses.append(message.channel.id)
+
+            try:
+                await message.channel.trigger_typing()
+            except:
+                pass
+
+            chat_result = await self.index_handler.execute_index_chat_message(
+                message, prompt
+            )
+            if chat_result:
+                await message.channel.send(chat_result)
+                self.thread_awaiting_responses.remove(message.channel.id)
+
+    async def index_chat_command(self, ctx, user_index, search_index, model):
+        if not user_index and not search_index:
+            await ctx.respond("Please provide a valid user index or search index")
+            return
+
+        await self.index_handler.start_index_chat(ctx, search_index, user_index, model)
+
+        pass
 
     async def rename_user_index_command(self, ctx, user_index, new_name):
         """Command handler to rename a user index"""
@@ -259,7 +326,14 @@ class IndexService(discord.Cog, name="IndexService"):
         await self.index_handler.load_index(ctx, index, server, search, user_api_key)
 
     async def query_command(
-        self, ctx, query, nodes, response_mode, child_branch_factor
+        self,
+        ctx,
+        query,
+        nodes,
+        response_mode,
+        child_branch_factor,
+        model,
+        multistep,
     ):
         """Command handler to query your index"""
 
@@ -277,7 +351,14 @@ class IndexService(discord.Cog, name="IndexService"):
                 return
 
         await self.index_handler.query(
-            ctx, query, response_mode, nodes, user_api_key, child_branch_factor
+            ctx,
+            query,
+            response_mode,
+            nodes,
+            user_api_key,
+            child_branch_factor,
+            model,
+            multistep,
         )
 
     async def compose_command(self, ctx, name):

@@ -1,14 +1,18 @@
+import asyncio.exceptions
 import datetime
 import re
 import traceback
 from collections import defaultdict
 
+import aiofiles
 import aiohttp
 import discord
+import requests
 from discord.ext import pages
 import unidecode
 
 from models.embed_statics_model import EmbedStatics
+from models.image_understanding_model import ImageUnderstandingModel
 from services.deletion_service import Deletion
 from models.openai_model import Model, Override, Models
 from models.user_model import EmbeddedConversationItem, RedoUser
@@ -17,6 +21,7 @@ from services.moderations_service import Moderation
 
 BOT_NAME = EnvService.get_custom_bot_name()
 PRE_MODERATE = EnvService.get_premoderate()
+image_understanding_model = ImageUnderstandingModel()
 
 
 class TextService:
@@ -34,7 +39,6 @@ class TextService:
         instruction=None,
         from_ask_command=False,
         from_edit_command=False,
-        codex=False,
         model=None,
         user=None,
         custom_api_key=None,
@@ -59,7 +63,6 @@ class TextService:
             instruction (str, optional): Instruction for use with the edit endpoint. Defaults to None.
             from_ask_command (bool, optional): Called from the ask command. Defaults to False.
             from_edit_command (bool, optional): Called from the edit command. Defaults to False.
-            codex (bool, optional): Pass along that we want to use a codex model. Defaults to False.
             model (str, optional): Which model to generate output with. Defaults to None.
             user (discord.User, optional): An user object that can be used to set the stop. Defaults to None.
             custom_api_key (str, optional): per-user api key. Defaults to None.
@@ -156,11 +159,18 @@ class TextService:
                         n=converser_cog.model.num_conversation_lookback,
                     )
 
-                    # When we are in embeddings mode, only the pre-text is contained in converser_cog.conversation_threads[message.channel.id].history, so we
-                    # can use that as a base to build our new prompt
+                    # We use the pretext to build our new history
                     _prompt_with_history = [
                         converser_cog.conversation_threads[ctx.channel.id].history[0]
                     ]
+
+                    # If there's an opener we add it to the history
+                    if converser_cog.conversation_threads[ctx.channel.id].has_opener:
+                        _prompt_with_history += [
+                            converser_cog.conversation_threads[ctx.channel.id].history[
+                                1
+                            ]
+                        ]
 
                     # Append the similar prompts to the prompt with history
                     _prompt_with_history += [
@@ -223,7 +233,8 @@ class TextService:
                 and tokens > converser_cog.model.summarize_threshold
                 and not from_ask_command
                 and not from_edit_command
-                and not converser_cog.pinecone_service  # This should only happen if we are not doing summarizations.
+                and not converser_cog.pinecone_service
+                # This should only happen if we are not doing summarizations.
             ):
                 # We don't need to worry about the differences between interactions and messages in this block,
                 # because if we are in this block, we can only be using a message object for ctx
@@ -294,6 +305,19 @@ class TextService:
                 delegator in Models.CHATGPT_MODELS or delegator in Models.GPT4_MODELS
             )
 
+            # Set some variables if a user or channel has a system instruction set
+            if ctx.author.id in converser_cog.instructions:
+                system_instruction = converser_cog.instructions[ctx.author.id].prompt
+                usage_message = "***Added user instruction to prompt***"
+                tokens += converser_cog.usage_service.count_tokens(system_instruction)
+            elif ctx.channel.id in converser_cog.instructions:
+                system_instruction = converser_cog.instructions[ctx.channel.id].prompt
+                usage_message = "***Added channel instruction to prompt***"
+                tokens += converser_cog.usage_service.count_tokens(system_instruction)
+            else:
+                system_instruction = None
+                usage_message = None
+
             if is_chatgpt_conversation:
                 _prompt_with_history = converser_cog.conversation_threads[
                     ctx.channel.id
@@ -317,7 +341,6 @@ class TextService:
                     instruction=instruction,
                     temp_override=overrides.temperature,
                     top_p_override=overrides.top_p,
-                    codex=codex,
                     custom_api_key=custom_api_key,
                 )
             else:
@@ -332,13 +355,16 @@ class TextService:
                     stop=stop if not from_ask_command else None,
                     custom_api_key=custom_api_key,
                     is_chatgpt_request=is_chatgpt_request,
+                    system_instruction=system_instruction,
                 )
 
             # Clean the request response
 
             response_text = (
                 converser_cog.cleanse_response(str(response["choices"][0]["text"]))
-                if not is_chatgpt_request and not is_chatgpt_conversation
+                if not is_chatgpt_request
+                and not is_chatgpt_conversation
+                or from_edit_command
                 else converser_cog.cleanse_response(
                     str(response["choices"][0]["message"]["content"])
                 )
@@ -346,19 +372,37 @@ class TextService:
 
             if from_message_context:
                 response_text = f"{response_text}"
+                response_text = (
+                    f"{usage_message}\n\n{response_text}"
+                    if system_instruction
+                    else response_text
+                )
             elif from_other_action:
                 response_text = f"***{from_other_action}*** {response_text}"
+                response_text = (
+                    f"{usage_message}\n\n{response_text}"
+                    if system_instruction
+                    else response_text
+                )
             elif from_ask_command or from_ask_action:
+                response_model = response["model"]
+                if "gpt-3.5" in response_model or "gpt-4" in response_model:
+                    response_text = (
+                        f"\n\n{response_text}"
+                        if not response_text.startswith("\n\n")
+                        else response_text
+                    )
                 response_text = f"***{prompt}***{response_text}"
+                response_text = (
+                    f"{usage_message}\n\n{response_text}"
+                    if system_instruction
+                    else response_text
+                )
             elif from_edit_command:
-                if codex:
-                    response_text = response_text.strip()
-                    response_text = f"***Prompt:\n `{prompt}`***\n***Instruction:\n `{instruction}`***\n\n```\n{response_text}\n```"
-                else:
-                    response_text = response_text.strip()
-                    response_text = f"***Prompt:\n `{prompt}`***\n***Instruction:\n `{instruction}`***\n\n{response_text}\n"
+                response_text = response_text.strip()
+                response_text = f"***Prompt:***\n {prompt}\n\n***Instruction:***\n {instruction}\n\n***Response:***\n {response_text}"
 
-            # If gpt3 tries writing a user mention try to replace it with their name
+            # If gpt tries writing a user mention try to replace it with their name
             response_text = await converser_cog.mention_to_username(ctx, response_text)
 
             # If the user is conversing, add the GPT response to their conversation history.
@@ -436,9 +480,7 @@ class TextService:
                             response_text, ctx
                         )
                     else:
-                        embed_pages = await converser_cog.paginate_embed(
-                            response_text, codex, prompt, instruction
-                        )
+                        embed_pages = await converser_cog.paginate_embed(response_text)
                         view = ConversationView(
                             ctx,
                             converser_cog,
@@ -454,7 +496,10 @@ class TextService:
                             custom_view=view,
                             author_check=True,
                         )
-                        response_message = await paginator.respond(ctx.interaction)
+                        try:
+                            response_message = await paginator.respond(ctx.interaction)
+                        except:
+                            response_message = await paginator.send(ctx.channel)
                 else:
                     paginator = None
                     if not from_context:
@@ -500,7 +545,6 @@ class TextService:
                     ctx=ctx,
                     message=ctx,
                     response=response_message,
-                    codex=codex,
                     paginator=paginator,
                 )
                 converser_cog.redo_users[ctx.author.id].add_interaction(
@@ -511,9 +555,7 @@ class TextService:
             else:
                 paginator = converser_cog.redo_users.get(ctx.author.id).paginator
                 if isinstance(paginator, pages.Paginator):
-                    embed_pages = await converser_cog.paginate_embed(
-                        response_text, codex, prompt, instruction
-                    )
+                    embed_pages = await converser_cog.paginate_embed(response_text)
                     view = ConversationView(
                         ctx,
                         converser_cog,
@@ -559,6 +601,16 @@ class TextService:
                 ctx.author.id, ctx.channel.id, from_ask_command, from_edit_command
             )
 
+        except asyncio.exceptions.TimeoutError as e:
+            embed = EmbedStatics.get_api_timeout_embed()
+            if from_context:
+                await ctx.send_followup(embed=embed)
+            else:
+                await ctx.reply(embed=embed)
+            converser_cog.remove_awaiting(
+                ctx.author.id, ctx.channel.id, from_ask_command, from_edit_command
+            )
+
         # Error catching for OpenAI model value errors
         except ValueError as e:
             embed = EmbedStatics.get_invalid_value_embed(e)
@@ -576,12 +628,10 @@ class TextService:
         except Exception as e:
             embed = EmbedStatics.get_general_error_embed(e)
 
-            if not from_context:
-                await ctx.send_followup(embed=embed)
-            elif from_ask_command:
-                await ctx.respond(embed=embed)
-            else:
-                await ctx.reply(embed=embed)
+            try:
+                await ctx.channel.send(embed=embed)
+            except:
+                pass
 
             converser_cog.remove_awaiting(
                 ctx.author.id, ctx.channel.id, from_ask_command, from_edit_command
@@ -596,7 +646,7 @@ class TextService:
 
     @staticmethod
     async def process_conversation_message(
-        converser_cog, message, USER_INPUT_API_KEYS, USER_KEY_DB
+        converser_cog, message, USER_INPUT_API_KEYS, USER_KEY_DB, file=None
     ):
         content = message.content.strip()
         conversing = converser_cog.check_conversing(message.channel.id, content)
@@ -683,6 +733,56 @@ class TextService:
                     await converser_cog.deletion_queue.put(deletion_original_message)
 
                     return
+
+                if file and image_understanding_model.get_is_usable():
+                    thinking_embed = discord.Embed(
+                        title=f"🤖💬 Interpreting attachment...",
+                        color=0x808080,
+                    )
+
+                    thinking_embed.set_footer(text="This may take a few seconds.")
+                    try:
+                        thinking_message = await message.reply(embed=thinking_embed)
+                    except:
+                        traceback.print_exc()
+                        pass
+
+                    try:
+                        await message.channel.trigger_typing()
+                    except Exception:
+                        pass
+                    async with aiofiles.tempfile.NamedTemporaryFile(
+                        delete=False
+                    ) as temp_file:
+                        await file.save(temp_file.name)
+                        try:
+                            image_caption, image_qa, image_ocr = await asyncio.gather(
+                                asyncio.to_thread(
+                                    image_understanding_model.get_image_caption,
+                                    temp_file.name,
+                                ),
+                                asyncio.to_thread(
+                                    image_understanding_model.ask_image_question,
+                                    prompt,
+                                    temp_file.name,
+                                ),
+                                image_understanding_model.do_image_ocr(temp_file.name),
+                            )
+                            prompt = (
+                                f"Image Info-Caption: {image_caption}\nImage Info-QA: {image_qa}\nImage Info-OCR: {image_ocr}\n"
+                                + prompt
+                            )
+                            try:
+                                await thinking_message.delete()
+                            except:
+                                pass
+                        except Exception:
+                            traceback.print_exc()
+                            await message.reply(
+                                "I wasn't able to understand the file you gave me."
+                            )
+                            await thinking_message.delete()
+                            return
 
                 converser_cog.awaiting_responses.append(message.author.id)
                 converser_cog.awaiting_thread_responses.append(message.channel.id)
@@ -776,7 +876,7 @@ class TextService:
                 )
             else:
                 await ctx.reply(
-                    "You must set up your API key before typing in a GPT3 powered channel, type `/setup` to enter your API key."
+                    "You must set up your API key before typing in a GPT powered channel, type `/setup` to enter your API key."
                 )
         return user_api_key
 
@@ -950,7 +1050,6 @@ class RedoButton(discord.ui.Button["ConversationView"]):
             instruction = self.converser_cog.redo_users[user_id].instruction
             ctx = self.converser_cog.redo_users[user_id].ctx
             response_message = self.converser_cog.redo_users[user_id].response
-            codex = self.converser_cog.redo_users[user_id].codex
 
             await interaction.response.send_message(
                 "Retrying your original request...", ephemeral=True, delete_after=15
@@ -965,7 +1064,6 @@ class RedoButton(discord.ui.Button["ConversationView"]):
                 ctx=ctx,
                 model=self.model,
                 response_message=response_message,
-                codex=codex,
                 custom_api_key=self.custom_api_key,
                 redo_request=True,
                 from_ask_command=self.from_ask_command,

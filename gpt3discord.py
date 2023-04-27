@@ -33,7 +33,7 @@ from services.environment_service import EnvService
 from models.openai_model import Model
 
 
-__version__ = "11.1.1"
+__version__ = "11.6.2"
 
 
 PID_FILE = Path("bot.pid")
@@ -174,6 +174,7 @@ async def main():
         IndexService(
             bot,
             usage_service,
+            deletion_queue,
         )
     )
 
@@ -185,7 +186,11 @@ async def main():
         EnvService.get_google_search_api_key()
         and EnvService.get_google_search_engine_id()
     ):
-        bot.add_cog(SearchService(bot, model, usage_service))
+        bot.add_cog(
+            SearchService(
+                bot, model, usage_service, deletion_queue, bot.get_cog("GPT3ComCon")
+            )
+        )
         print("The Search service is enabled.")
 
     bot.add_cog(

@@ -83,6 +83,12 @@ class Commands(discord.Cog, name="Commands"):
         guild_ids=ALLOWED_GUILDS,
         checks=[Check.check_index_roles()],  # TODO new role checker for transcribe
     )
+    internet = discord.SlashCommandGroup(
+        name="internet",
+        description="Transcription services using OpenAI Whisper2",
+        guild_ids=ALLOWED_GUILDS,
+        checks=[Check.check_index_roles()],  # TODO new role checker for transcribe
+    )
 
     #
     # System commands
@@ -310,12 +316,62 @@ class Commands(discord.Cog, name="Commands"):
 
     @add_to_group("gpt")
     @discord.slash_command(
-        name="ask",
-        description="Ask GPT3 something!",
+        name="instruction",
+        description="Set your own system instruction",
         guild_ids=ALLOWED_GUILDS,
     )
     @discord.option(
-        name="prompt", description="The prompt to send to GPT3", required=True
+        name="mode",
+        description="Set/Get/Clear prompt",
+        choices=["set", "get", "clear"],
+        required=True,
+    )
+    @discord.option(
+        name="type",
+        description="Enable for channel or for user",
+        choices=["user", "channel"],
+        required=True,
+    )
+    @discord.option(
+        name="instruction", description="The instruction to set", required=False
+    )
+    @discord.option(
+        name="instruction_file",
+        description="The instruction to set from a txt file",
+        input_type=discord.SlashCommandOptionType.attachment,
+        required=False,
+    )
+    @discord.option(
+        name="private", description="Will only be visible to you", required=False
+    )
+    @discord.guild_only()
+    async def instruction(
+        self,
+        ctx: discord.ApplicationContext,
+        mode: str,
+        type: str,
+        instruction: str,
+        instruction_file: discord.Attachment,
+        private: bool,
+    ):
+        await self.converser_cog.instruction_command(
+            ctx, mode, type, instruction, instruction_file, private
+        )
+
+    @add_to_group("gpt")
+    @discord.slash_command(
+        name="ask",
+        description="Ask the bot something!",
+        guild_ids=ALLOWED_GUILDS,
+    )
+    @discord.option(
+        name="prompt", description="The prompt to send to the model", required=False
+    )
+    @discord.option(
+        name="prompt_file",
+        description="The prompt file to send to the model. Is added before the prompt, both can be combined",
+        required=False,
+        input_type=discord.SlashCommandOptionType.attachment,
     )
     @discord.option(
         name="model",
@@ -359,6 +415,7 @@ class Commands(discord.Cog, name="Commands"):
         self,
         ctx: discord.ApplicationContext,
         prompt: str,
+        prompt_file: discord.Attachment,
         model: str,
         private: bool,
         temperature: float,
@@ -374,18 +431,19 @@ class Commands(discord.Cog, name="Commands"):
             top_p,
             frequency_penalty,
             presence_penalty,
+            prompt_file=prompt_file,
             model=model,
         )
 
     @add_to_group("gpt")
     @discord.slash_command(
         name="edit",
-        description="Ask GPT3 to edit some text!",
+        description="Ask the bot to edit some text!",
         guild_ids=ALLOWED_GUILDS,
     )
     @discord.option(
         name="instruction",
-        description="How you want GPT3 to edit the text",
+        description="How you want the bot to edit the text",
         required=True,
     )
     @discord.option(
@@ -413,9 +471,6 @@ class Commands(discord.Cog, name="Commands"):
         min_value=0,
         max_value=1,
     )
-    @discord.option(
-        name="codex", description="Enable codex version", required=False, default=False
-    )
     @discord.guild_only()
     async def edit(
         self,
@@ -425,16 +480,15 @@ class Commands(discord.Cog, name="Commands"):
         private: bool,
         temperature: float,
         top_p: float,
-        codex: bool,
     ):
         await self.converser_cog.edit_command(
-            ctx, instruction, text, private, temperature, top_p, codex
+            ctx, instruction, text, private, temperature, top_p
         )
 
     @add_to_group("gpt")
     @discord.slash_command(
         name="converse",
-        description="Have a conversation with GPT3",
+        description="Have a conversation with GPT",
         guild_ids=ALLOWED_GUILDS,
     )
     @discord.option(
@@ -537,7 +591,7 @@ class Commands(discord.Cog, name="Commands"):
     @add_to_group("gpt")
     @discord.slash_command(
         name="end",
-        description="End a conversation with GPT3",
+        description="End a conversation with GPT",
         guild_ids=ALLOWED_GUILDS,
     )
     @discord.guild_only()
@@ -667,6 +721,42 @@ class Commands(discord.Cog, name="Commands"):
         await self.index_cog.load_index_command(
             ctx, user_index, server_index, search_index
         )
+
+    @add_to_group("index")
+    @discord.slash_command(
+        name="talk",
+        description="Select one of your saved indexes to talk to",
+        guild_ids=ALLOWED_GUILDS,
+    )
+    @discord.guild_only()
+    @discord.option(
+        name="user_index",
+        description="Which user file to load the index from",
+        required=False,
+        autocomplete=File_autocompleter.get_user_indexes,
+    )
+    @discord.option(
+        name="search_index",
+        description="Which search index file to load the index from",
+        required=False,
+        autocomplete=File_autocompleter.get_user_search_indexes,
+    )
+    @discord.option(
+        name="model",
+        description="The model to use for the conversation",
+        required=False,
+        default="gpt-3.5-turbo",
+        autocomplete=Settings_autocompleter.get_index_and_search_models,
+    )
+    async def talk(
+        self,
+        ctx: discord.ApplicationContext,
+        user_index: str,
+        search_index: str,
+        model: str,
+    ):
+        await ctx.defer()
+        await self.index_cog.index_chat_command(ctx, user_index, search_index, model)
 
     @add_to_group("index")
     @discord.slash_command(
@@ -820,6 +910,20 @@ class Commands(discord.Cog, name="Commands"):
         max_value=3,
         input_type=discord.SlashCommandOptionType.integer,
     )
+    @discord.option(
+        name="model",
+        description="The model to use for the request (querying, not composition)",
+        required=False,
+        default="gpt-3.5-turbo",
+        autocomplete=Settings_autocompleter.get_index_and_search_models,
+    )
+    @discord.option(
+        name="multistep",
+        description="Do a more intensive, multi-step query,",
+        required=False,
+        default=False,
+        input_type=discord.SlashCommandOptionType.boolean,
+    )
     async def query(
         self,
         ctx: discord.ApplicationContext,
@@ -827,10 +931,18 @@ class Commands(discord.Cog, name="Commands"):
         nodes: int,
         response_mode: str,
         child_branch_factor: int,
+        model: str,
+        multistep: bool,
     ):
         await ctx.defer()
         await self.index_cog.query_command(
-            ctx, query, nodes, response_mode, child_branch_factor
+            ctx,
+            query,
+            nodes,
+            response_mode,
+            child_branch_factor,
+            model,
+            multistep,
         )
 
     #
@@ -1001,10 +1113,44 @@ class Commands(discord.Cog, name="Commands"):
     async def summarize_action(self, ctx, message: discord.Message):
         await self.converser_cog.summarize_action(ctx, message)
 
+    @add_to_group("internet")
+    @discord.slash_command(
+        name="chat",
+        description="Chat with GPT connected to the internet!",
+        guild_ids=ALLOWED_GUILDS,
+        checks=[Check.check_search_roles()],
+    )
+    @discord.option(
+        name="search_scope",
+        description="How many top links to use for context",
+        required=False,
+        input_type=discord.SlashCommandOptionType.integer,
+        max_value=6,
+        min_value=1,
+        default=2,
+    )
+    @discord.option(
+        name="use_gpt4",
+        description="Use GPT4 instead of GPT3",
+        required=False,
+        input_type=discord.SlashCommandOptionType.boolean,
+        default=False,
+    )
+    async def chat(
+        self,
+        ctx: discord.ApplicationContext,
+        search_scope: int = 2,
+        use_gpt4: bool = False,
+    ):
+        await self.search_cog.search_chat_command(
+            ctx, search_scope=search_scope, use_gpt4=use_gpt4
+        )
+
     # Search slash commands
+    @add_to_group("internet")
     @discord.slash_command(
         name="search",
-        description="Search google alongside GPT3 for something",
+        description="Search google alongside GPT for something",
         guild_ids=ALLOWED_GUILDS,
         checks=[Check.check_search_roles()],
     )
@@ -1039,6 +1185,20 @@ class Commands(discord.Cog, name="Commands"):
         default="default",
         choices=["default", "compact", "tree_summarize"],
     )
+    @discord.option(
+        name="model",
+        description="The model to use for the request (querying, not composition)",
+        required=False,
+        default="gpt-3.5-turbo",
+        autocomplete=Settings_autocompleter.get_index_and_search_models,
+    )
+    @discord.option(
+        name="multistep",
+        description="Do a more intensive, multi-step query,",
+        required=False,
+        default=False,
+        input_type=discord.SlashCommandOptionType.boolean,
+    )
     @discord.guild_only()
     async def search(
         self,
@@ -1048,9 +1208,18 @@ class Commands(discord.Cog, name="Commands"):
         nodes: int,
         deep: bool,
         response_mode: str,
+        model: str,
+        multistep: bool,
     ):
         await self.search_cog.search_command(
-            ctx, query, scope, nodes, deep, response_mode
+            ctx,
+            query,
+            scope,
+            nodes,
+            deep,
+            response_mode,
+            model,
+            multistep,
         )
 
     # Transcribe commands
