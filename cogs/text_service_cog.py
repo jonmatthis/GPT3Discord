@@ -1087,6 +1087,17 @@ class GPT3ComCon(discord.Cog, name="GPT3ComCon"):
             f"<@{str(ctx.user.id)}> This is a private thread for testing. Only you and server admins can see this thread."
         )
 
+    async def skelly_converse_command(self, **kwargs):
+        """Command handler. Starts a conversation with the bot"""
+
+        if kwargs["model"] is None or False:
+            kwargs["model"] = "gpt-4"
+
+        if kwargs["opener_file"] is None:
+            kwargs["opener_file"] = "conversation_starter_pretext_freemocap.txt"
+
+        await self.converse_command( **kwargs)
+
     async def converse_command(
         self,
         ctx: discord.ApplicationContext,

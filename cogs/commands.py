@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import discord
 from pycord.multicog import add_to_group
 
@@ -30,6 +32,7 @@ class Commands(discord.Cog, name="Commands"):
         translations_cog=None,
         search_cog=None,
         transcribe_cog=None,
+        agent_cog=None,
     ):
         super().__init__()
         self.bot = bot
@@ -45,6 +48,7 @@ class Commands(discord.Cog, name="Commands"):
         self.translations_cog = translations_cog
         self.search_cog = search_cog
         self.transcribe_cog = transcribe_cog
+        # self.agent_cog = agent_cog
 
     # Create slash command groups
     dalle = discord.SlashCommandGroup(
@@ -88,6 +92,12 @@ class Commands(discord.Cog, name="Commands"):
         description="Transcription services using OpenAI Whisper2",
         guild_ids=ALLOWED_GUILDS,
         checks=[Check.check_index_roles()],  # TODO new role checker for transcribe
+    )
+    skelly = discord.SlashCommandGroup(
+        name="skelly",
+        description="Skelly related commands",
+        guild_ids=ALLOWED_GUILDS,
+        checks=[Check.check_gpt_roles()],
     )
 
     #
@@ -1277,3 +1287,114 @@ class Commands(discord.Cog, name="Commands"):
         self, ctx: discord.ApplicationContext, link: str, temperature: float
     ):
         await self.transcribe_cog.transcribe_link_command(ctx, link, temperature)
+
+
+
+
+
+
+
+
+
+    @add_to_group("skelly")
+    @discord.slash_command(
+        name="converse",
+        description="Have a conversation with GPT",
+        guild_ids=ALLOWED_GUILDS,
+    )
+    @discord.option(
+        name="opener",
+        description="Which sentence to start with, added after the file",
+        required=False,
+    )
+    @discord.option(
+        name="opener_file",
+        description="Which file to start with, added before the opener, sets minimal starter",
+        required=False,
+        autocomplete=File_autocompleter.get_openers,
+    )
+    @discord.option(
+        name="private",
+        description="Converse in a private thread",
+        required=False,
+        default=False,
+    )
+    @discord.option(
+        name="minimal",
+        description="Use minimal starter text, saves tokens and has a more open personality",
+        required=False,
+        default=False,
+    )
+    @discord.option(
+        name="model",
+        description="Which model to use with the bot",
+        required=False,
+        default=False,
+        autocomplete=Settings_autocompleter.get_converse_models,
+    )
+    @discord.option(
+        name="temperature",
+        description="Higher values means the model will take more risks",
+        required=False,
+        input_type=float,
+        min_value=0,
+        max_value=2,
+    )
+    @discord.option(
+        name="top_p",
+        description="1 is greedy sampling, 0.1 means only top 10%",
+        required=False,
+        input_type=float,
+        min_value=0,
+        max_value=1,
+    )
+    @discord.option(
+        name="frequency_penalty",
+        description="Decreasing the model's likelihood to repeat the same line verbatim",
+        required=False,
+        input_type=float,
+        min_value=-2,
+        max_value=2,
+    )
+    @discord.option(
+        name="presence_penalty",
+        description="Increasing the model's likelihood to talk about new topics",
+        required=False,
+        input_type=float,
+        min_value=-2,
+        max_value=2,
+    )
+    @discord.option(
+        name="use_threads",
+        description="Set this to false to start a channel conversation",
+        required=False,
+        default=True,
+    )
+    @discord.guild_only()
+    async def skelly_converse(
+        self,
+        ctx: discord.ApplicationContext,
+        opener: str,
+        opener_file: str,
+        private: bool,
+        minimal: bool,
+        model: str,
+        temperature: float,
+        top_p: float,
+        frequency_penalty: float,
+        presence_penalty: float,
+        use_threads: bool,
+    ):
+        await self.converser_cog.skelly_converse_command(
+            ctx = ctx,
+            opener = opener,
+            opener_file=opener_file,
+            private=private,
+            minimal=minimal,
+            model=model,
+            temperature=temperature,
+            top_p=top_p,
+            frequency_penalty=frequency_penalty,
+            presence_penalty=presence_penalty,
+            use_threads=use_threads,
+        )

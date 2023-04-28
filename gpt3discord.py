@@ -119,6 +119,21 @@ async def on_application_command_error(
     else:
         raise error
 
+# @bot.slash_command(name = "skelly", description = "Chat with Skelly FreeMoCap")
+# async def skelly(ctx):
+#     await converser_cog.converse_command(
+#             ctx,
+#             None,
+#             None,
+#             None,
+#             None,
+#             "gpt-4",
+#             None,
+#             None,
+#             None,
+#             None,
+#             use_threads=True,
+#         )
 
 async def main():
     data_path = EnvService.environment_path_with_fallback("DATA_DIR")
@@ -216,6 +231,7 @@ async def main():
             bot.get_cog("TranslationService"),
             bot.get_cog("SearchService"),
             bot.get_cog("TranscribeService"),
+            # bot.get_cog("AgentService"),
         )
     )
 
