@@ -11,6 +11,7 @@ import discord
 import pinecone
 from pycord.multicog import apply_multicog
 
+from cogs.langchain_agent_cog import LangChainAgentCog
 from cogs.search_service_cog import SearchService
 from cogs.text_service_cog import GPT3ComCon
 from cogs.image_service_cog import DrawDallEService
@@ -146,6 +147,21 @@ async def main():
     # Load the cog for the moderations service
     bot.add_cog(ModerationsService(bot, usage_service, model))
 
+    bot.add_cog(
+        LangChainAgentCog(
+            bot,
+            usage_service,
+            model,
+            message_queue,
+            deletion_queue,
+            debug_guild,
+            debug_channel,
+            data_path,
+            pinecone_service=pinecone_service,
+            pickle_queue=pickle_queue,
+        )
+    )
+
     # Load the main GPT3 Bot service
     bot.add_cog(
         GPT3ComCon(
@@ -231,7 +247,7 @@ async def main():
             bot.get_cog("TranslationService"),
             bot.get_cog("SearchService"),
             bot.get_cog("TranscribeService"),
-            # bot.get_cog("AgentService"),
+            bot.get_cog("LangChainAgentCog"),
         )
     )
 

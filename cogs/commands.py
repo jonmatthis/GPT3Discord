@@ -1,15 +1,13 @@
-from pathlib import Path
-
 import discord
 from pycord.multicog import add_to_group
 
-from services.environment_service import EnvService
-from models.check_model import Check
 from models.autocomplete_model import (
     Settings_autocompleter,
     File_autocompleter,
     Translations_autocompleter,
 )
+from models.check_model import Check
+from services.environment_service import EnvService
 
 ALLOWED_GUILDS = EnvService.get_allowed_guilds()
 
@@ -18,21 +16,21 @@ class Commands(discord.Cog, name="Commands"):
     """Cog containing all slash and context commands as one-liners"""
 
     def __init__(
-        self,
-        bot,
-        usage_service,
-        model,
-        message_queue,
-        deletion_queue,
-        converser_cog,
-        image_draw_cog,
-        image_service_cog,
-        moderations_cog,
-        index_cog,
-        translations_cog=None,
-        search_cog=None,
-        transcribe_cog=None,
-        agent_cog=None,
+            self,
+            bot,
+            usage_service,
+            model,
+            message_queue,
+            deletion_queue,
+            converser_cog,
+            image_draw_cog,
+            image_service_cog,
+            moderations_cog,
+            index_cog,
+            translations_cog=None,
+            search_cog=None,
+            transcribe_cog=None,
+            langchain_agent_cog=None,
     ):
         super().__init__()
         self.bot = bot
@@ -48,7 +46,7 @@ class Commands(discord.Cog, name="Commands"):
         self.translations_cog = translations_cog
         self.search_cog = search_cog
         self.transcribe_cog = transcribe_cog
-        # self.agent_cog = agent_cog
+        self.langchain_agent_cog = langchain_agent_cog
 
     # Create slash command groups
     dalle = discord.SlashCommandGroup(
@@ -99,6 +97,12 @@ class Commands(discord.Cog, name="Commands"):
         guild_ids=ALLOWED_GUILDS,
         checks=[Check.check_gpt_roles()],
     )
+    agent = discord.SlashCommandGroup(
+        name="agent",
+        description="LangChainAgent related commands",
+        guild_ids=ALLOWED_GUILDS,
+        checks=[Check.check_gpt_roles()],
+    )
 
     #
     # System commands
@@ -124,7 +128,7 @@ class Commands(discord.Cog, name="Commands"):
     )
     @discord.guild_only()
     async def settings(
-        self, ctx: discord.ApplicationContext, parameter: str = None, value: str = None
+            self, ctx: discord.ApplicationContext, parameter: str = None, value: str = None
     ):
         await self.converser_cog.settings_command(ctx, parameter, value)
 
@@ -230,7 +234,7 @@ class Commands(discord.Cog, name="Commands"):
     )
     @discord.guild_only()
     async def moderations(
-        self, ctx: discord.ApplicationContext, status: str, alert_channel_id: str
+            self, ctx: discord.ApplicationContext, status: str, alert_channel_id: str
     ):
         await self.moderations_cog.moderations_command(ctx, status, alert_channel_id)
 
@@ -297,16 +301,16 @@ class Commands(discord.Cog, name="Commands"):
     )
     @discord.guild_only()
     async def config(
-        self,
-        ctx: discord.ApplicationContext,
-        type: str,
-        hate: float,
-        hate_threatening: float,
-        self_harm: float,
-        sexual: float,
-        sexual_minors: float,
-        violence: float,
-        violence_graphic: float,
+            self,
+            ctx: discord.ApplicationContext,
+            type: str,
+            hate: float,
+            hate_threatening: float,
+            self_harm: float,
+            sexual: float,
+            sexual_minors: float,
+            violence: float,
+            violence_graphic: float,
     ):
         await self.moderations_cog.config_command(
             ctx,
@@ -356,13 +360,13 @@ class Commands(discord.Cog, name="Commands"):
     )
     @discord.guild_only()
     async def instruction(
-        self,
-        ctx: discord.ApplicationContext,
-        mode: str,
-        type: str,
-        instruction: str,
-        instruction_file: discord.Attachment,
-        private: bool,
+            self,
+            ctx: discord.ApplicationContext,
+            mode: str,
+            type: str,
+            instruction: str,
+            instruction_file: discord.Attachment,
+            private: bool,
     ):
         await self.converser_cog.instruction_command(
             ctx, mode, type, instruction, instruction_file, private
@@ -422,16 +426,16 @@ class Commands(discord.Cog, name="Commands"):
     )
     @discord.guild_only()
     async def ask(
-        self,
-        ctx: discord.ApplicationContext,
-        prompt: str,
-        prompt_file: discord.Attachment,
-        model: str,
-        private: bool,
-        temperature: float,
-        top_p: float,
-        frequency_penalty: float,
-        presence_penalty: float,
+            self,
+            ctx: discord.ApplicationContext,
+            prompt: str,
+            prompt_file: discord.Attachment,
+            model: str,
+            private: bool,
+            temperature: float,
+            top_p: float,
+            frequency_penalty: float,
+            presence_penalty: float,
     ):
         await self.converser_cog.ask_command(
             ctx,
@@ -483,13 +487,13 @@ class Commands(discord.Cog, name="Commands"):
     )
     @discord.guild_only()
     async def edit(
-        self,
-        ctx: discord.ApplicationContext,
-        instruction: str,
-        text: str,
-        private: bool,
-        temperature: float,
-        top_p: float,
+            self,
+            ctx: discord.ApplicationContext,
+            instruction: str,
+            text: str,
+            private: bool,
+            temperature: float,
+            top_p: float,
     ):
         await self.converser_cog.edit_command(
             ctx, instruction, text, private, temperature, top_p
@@ -571,18 +575,18 @@ class Commands(discord.Cog, name="Commands"):
     )
     @discord.guild_only()
     async def converse(
-        self,
-        ctx: discord.ApplicationContext,
-        opener: str,
-        opener_file: str,
-        private: bool,
-        minimal: bool,
-        model: str,
-        temperature: float,
-        top_p: float,
-        frequency_penalty: float,
-        presence_penalty: float,
-        use_threads: bool,
+            self,
+            ctx: discord.ApplicationContext,
+            opener: str,
+            opener_file: str,
+            private: bool,
+            minimal: bool,
+            model: str,
+            temperature: float,
+            top_p: float,
+            frequency_penalty: float,
+            presence_penalty: float,
+            use_threads: bool,
     ):
         await self.converser_cog.converse_command(
             ctx,
@@ -631,10 +635,10 @@ class Commands(discord.Cog, name="Commands"):
         type=discord.SlashCommandOptionType.string,
     )
     async def rename_user_index(
-        self,
-        ctx: discord.ApplicationContext,
-        user_index: str,
-        new_name: str,
+            self,
+            ctx: discord.ApplicationContext,
+            user_index: str,
+            new_name: str,
     ):
         await ctx.defer()
         await self.index_cog.rename_user_index_command(ctx, user_index, new_name)
@@ -659,10 +663,10 @@ class Commands(discord.Cog, name="Commands"):
         type=discord.SlashCommandOptionType.string,
     )
     async def rename_server_index(
-        self,
-        ctx: discord.ApplicationContext,
-        server_index: str,
-        new_name: str,
+            self,
+            ctx: discord.ApplicationContext,
+            server_index: str,
+            new_name: str,
     ):
         await ctx.defer()
         await self.index_cog.rename_server_index_command(ctx, server_index, new_name)
@@ -687,10 +691,10 @@ class Commands(discord.Cog, name="Commands"):
         type=discord.SlashCommandOptionType.string,
     )
     async def rename_search_index(
-        self,
-        ctx: discord.ApplicationContext,
-        search_index: str,
-        new_name: str,
+            self,
+            ctx: discord.ApplicationContext,
+            search_index: str,
+            new_name: str,
     ):
         await ctx.defer()
         await self.index_cog.rename_search_index_command(ctx, search_index, new_name)
@@ -721,11 +725,11 @@ class Commands(discord.Cog, name="Commands"):
         autocomplete=File_autocompleter.get_user_search_indexes,
     )
     async def load_index(
-        self,
-        ctx: discord.ApplicationContext,
-        user_index: str,
-        server_index: str,
-        search_index: str,
+            self,
+            ctx: discord.ApplicationContext,
+            user_index: str,
+            server_index: str,
+            search_index: str,
     ):
         await ctx.defer()
         await self.index_cog.load_index_command(
@@ -759,11 +763,11 @@ class Commands(discord.Cog, name="Commands"):
         autocomplete=Settings_autocompleter.get_index_and_search_models,
     )
     async def talk(
-        self,
-        ctx: discord.ApplicationContext,
-        user_index: str,
-        search_index: str,
-        model: str,
+            self,
+            ctx: discord.ApplicationContext,
+            user_index: str,
+            search_index: str,
+            model: str,
     ):
         await ctx.defer()
         await self.index_cog.index_chat_command(ctx, user_index, search_index, model)
@@ -786,7 +790,7 @@ class Commands(discord.Cog, name="Commands"):
         input_type=str,
     )
     async def set_file(
-        self, ctx: discord.ApplicationContext, file: discord.Attachment, link: str
+            self, ctx: discord.ApplicationContext, file: discord.Attachment, link: str
     ):
         await self.index_cog.set_index_command(ctx, file, link)
 
@@ -812,7 +816,7 @@ class Commands(discord.Cog, name="Commands"):
         max_value=5,
     )
     async def set_recurse_link(
-        self, ctx: discord.ApplicationContext, link: str, depth: int
+            self, ctx: discord.ApplicationContext, link: str, depth: int
     ):
         await self.index_cog.set_index_link_recurse_command(ctx, link, depth)
 
@@ -862,10 +866,10 @@ class Commands(discord.Cog, name="Commands"):
         input_type=discord.SlashCommandOptionType.integer,
     )
     async def set_discord(
-        self,
-        ctx: discord.ApplicationContext,
-        channel: discord.TextChannel,
-        message_limit: int,
+            self,
+            ctx: discord.ApplicationContext,
+            channel: discord.TextChannel,
+            message_limit: int,
     ):
         await self.index_cog.set_discord_command(
             ctx, channel, message_limit=message_limit
@@ -935,14 +939,14 @@ class Commands(discord.Cog, name="Commands"):
         input_type=discord.SlashCommandOptionType.boolean,
     )
     async def query(
-        self,
-        ctx: discord.ApplicationContext,
-        query: str,
-        nodes: int,
-        response_mode: str,
-        child_branch_factor: int,
-        model: str,
-        multistep: bool,
+            self,
+            ctx: discord.ApplicationContext,
+            query: str,
+            nodes: int,
+            response_mode: str,
+            child_branch_factor: int,
+            model: str,
+            multistep: bool,
     ):
         await ctx.defer()
         await self.index_cog.query_command(
@@ -1056,11 +1060,11 @@ class Commands(discord.Cog, name="Commands"):
     )
     @discord.guild_only()
     async def translate(
-        self,
-        ctx: discord.ApplicationContext,
-        text: str,
-        target_language: str,
-        formality: str,
+            self,
+            ctx: discord.ApplicationContext,
+            text: str,
+            target_language: str,
+            formality: str,
     ):
         if self.translations_cog:
             await self.translations_cog.translate_command(
@@ -1147,10 +1151,10 @@ class Commands(discord.Cog, name="Commands"):
         default=False,
     )
     async def chat(
-        self,
-        ctx: discord.ApplicationContext,
-        search_scope: int = 2,
-        use_gpt4: bool = False,
+            self,
+            ctx: discord.ApplicationContext,
+            search_scope: int = 2,
+            use_gpt4: bool = False,
     ):
         await self.search_cog.search_chat_command(
             ctx, search_scope=search_scope, use_gpt4=use_gpt4
@@ -1211,15 +1215,15 @@ class Commands(discord.Cog, name="Commands"):
     )
     @discord.guild_only()
     async def search(
-        self,
-        ctx: discord.ApplicationContext,
-        query: str,
-        scope: int,
-        nodes: int,
-        deep: bool,
-        response_mode: str,
-        model: str,
-        multistep: bool,
+            self,
+            ctx: discord.ApplicationContext,
+            query: str,
+            scope: int,
+            nodes: int,
+            deep: bool,
+            response_mode: str,
+            model: str,
+            multistep: bool,
     ):
         await self.search_cog.search_command(
             ctx,
@@ -1255,10 +1259,10 @@ class Commands(discord.Cog, name="Commands"):
         min_value=0,
     )
     async def transcribe_file(
-        self,
-        ctx: discord.ApplicationContext,
-        file: discord.Attachment,
-        temperature: float,
+            self,
+            ctx: discord.ApplicationContext,
+            file: discord.Attachment,
+            temperature: float,
     ):
         await self.transcribe_cog.transcribe_file_command(ctx, file, temperature)
 
@@ -1284,22 +1288,14 @@ class Commands(discord.Cog, name="Commands"):
         min_value=0,
     )
     async def transcribe_link(
-        self, ctx: discord.ApplicationContext, link: str, temperature: float
+            self, ctx: discord.ApplicationContext, link: str, temperature: float
     ):
         await self.transcribe_cog.transcribe_link_command(ctx, link, temperature)
 
-
-
-
-
-
-
-
-
-    @add_to_group("skelly")
+    @add_to_group("agent")
     @discord.slash_command(
-        name="converse",
-        description="Have a conversation with GPT",
+        name="skelly",
+        description="Chat with Skelly FreeMocap",
         guild_ids=ALLOWED_GUILDS,
     )
     @discord.option(
@@ -1307,94 +1303,15 @@ class Commands(discord.Cog, name="Commands"):
         description="Which sentence to start with, added after the file",
         required=False,
     )
-    @discord.option(
-        name="opener_file",
-        description="Which file to start with, added before the opener, sets minimal starter",
-        required=False,
-        autocomplete=File_autocompleter.get_openers,
-    )
-    @discord.option(
-        name="private",
-        description="Converse in a private thread",
-        required=False,
-        default=False,
-    )
-    @discord.option(
-        name="minimal",
-        description="Use minimal starter text, saves tokens and has a more open personality",
-        required=False,
-        default=False,
-    )
-    @discord.option(
-        name="model",
-        description="Which model to use with the bot",
-        required=False,
-        default=False,
-        autocomplete=Settings_autocompleter.get_converse_models,
-    )
-    @discord.option(
-        name="temperature",
-        description="Higher values means the model will take more risks",
-        required=False,
-        input_type=float,
-        min_value=0,
-        max_value=2,
-    )
-    @discord.option(
-        name="top_p",
-        description="1 is greedy sampling, 0.1 means only top 10%",
-        required=False,
-        input_type=float,
-        min_value=0,
-        max_value=1,
-    )
-    @discord.option(
-        name="frequency_penalty",
-        description="Decreasing the model's likelihood to repeat the same line verbatim",
-        required=False,
-        input_type=float,
-        min_value=-2,
-        max_value=2,
-    )
-    @discord.option(
-        name="presence_penalty",
-        description="Increasing the model's likelihood to talk about new topics",
-        required=False,
-        input_type=float,
-        min_value=-2,
-        max_value=2,
-    )
-    @discord.option(
-        name="use_threads",
-        description="Set this to false to start a channel conversation",
-        required=False,
-        default=True,
-    )
     @discord.guild_only()
-    async def skelly_converse(
-        self,
-        ctx: discord.ApplicationContext,
-        opener: str,
-        opener_file: str,
-        private: bool,
-        minimal: bool,
-        model: str,
-        temperature: float,
-        top_p: float,
-        frequency_penalty: float,
-        presence_penalty: float,
-        use_threads: bool,
+    async def invoke_skelly_agent(
+            self,
+            ctx: discord.ApplicationContext,
+            opener: str,
+            **kwargs,
     ):
-        await self.converser_cog.skelly_converse_command(
-            ctx = ctx,
-            opener = opener,
-            opener_file=opener_file,
-            private=private,
-            minimal=minimal,
-            model=model,
-            temperature=temperature,
-            top_p=top_p,
-            frequency_penalty=frequency_penalty,
-            presence_penalty=presence_penalty,
-            use_threads=use_threads,
+        await self.langchain_agent_cog.invoke_skelly_agent(
+            ctx=ctx,
+            opener=opener,
+            **kwargs,
         )
