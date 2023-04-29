@@ -1294,23 +1294,22 @@ class Commands(discord.Cog, name="Commands"):
 
     @add_to_group("agent")
     @discord.slash_command(
-        name="skelly",
-        description="Chat with Skelly FreeMocap",
+        name="invoke",
+        description="Invoke an agent",
         guild_ids=ALLOWED_GUILDS,
     )
     @discord.option(
-        name="opener",
-        description="Which sentence to start with, added after the file",
-        required=False,
+        name="agent",
+        description="Which agent to invoke",
+        input_type=discord.SlashCommandOptionType.string,
+        default="agent",
+
     )
     @discord.guild_only()
-    async def invoke(
-            self,
-            ctx: discord.ApplicationContext,
-            opener: str,
-
-    ):
+    async def invoke(self,
+                     ctx: discord.ApplicationContext,
+                     agent: str,
+                     ):
         await self.langchain_agent_cog.run(
             ctx=ctx,
-
         )

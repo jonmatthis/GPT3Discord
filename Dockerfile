@@ -1,67 +1,32 @@
-ARG PY_VERSION=3.10
+# Use the official Python base image
+FROM python:3.9-slim
 
-# Build container
-FROM python:${PY_VERSION} as base
-FROM base as builder
-ARG PY_VERSION
-ARG TARGETPLATFORM
-ARG FULL
-
+# Set the working directory to /app
+WORKDIR .
 COPY . .
 
-#Install rust
-RUN apt-get update
-RUN apt-get install -y \
-    build-essential \
-    gcc \
-    curl
-RUN curl https://sh.rustup.rs -sSf | bash -s -- -y
-ARG PATH="/root/.cargo/bin:${PATH}"
-# https://github.com/rust-lang/cargo/issues/10583
-ARG CARGO_NET_GIT_FETCH_WITH_CLI=true
 
-RUN mkdir /install /src
-WORKDIR /install
+# Install any needed packages specified in requirements.txt
+RUN pip install  -r requirements.txt
 
-RUN pip install --target="/install" --upgrade pip setuptools wheel setuptools_rust
+# # Copy the rest of the application code into the container
+# COPY /cogs /app/cogs
+# COPY /models /app/models
+# COPY /openers /app/openers
+# COPY /services /app/services
+# COPY /tests /app/tests
+# COPY conversation_starter_pretext.txt /app
+# COPY conversation_starter_pretext_minimal.txt /app
+# COPY image_optimizer_pretext.txt /app
+# COPY language_detection_pretext.txt /app
+#
+# COPY gptdiscord.py /app
+#
+# COPY .env /app
 
-COPY requirements_base.txt /install
-COPY requirements_full.txt /install
-RUN pip install --target="/install" --upgrade -r requirements_base.txt
-RUN if [ "${FULL}" = "true" ]; then \
-    if [ "${TARGETPLATFORM}" = "linux/amd64" ]; then pip install --target="/install" --upgrade torch==1.13.1+cpu torchvision==0.14.1+cpu -f https://download.pytorch.org/whl/torch_stable.html ; fi \
-    ; if [ "${TARGETPLATFORM}" = "linux/arm64" ]; then pip install --target="/install" --upgrade torch==1.13.1 torchvision==0.14.1 -f https://torch.kmtea.eu/whl/stable.html -f https://ext.kmtea.eu/whl/stable.html ; fi \  
-    ; pip install --target="/install" --upgrade \
-       -r requirements_full.txt \
-    ; pip install --target="/install" --upgrade \
-       --no-deps --no-build-isolation openai-whisper sentence-transformers==2.2.2 \
-    ; fi
 
-COPY README.md /src
-COPY cogs /src/cogs
-COPY models /src/models
-COPY services /src/services
-COPY gpt3discord.py /src
-COPY pyproject.toml /src
+# Expose the port the app runs on
+EXPOSE 8080
 
-# For debugging + seeing that the modiles file layouts look correct ...
-RUN find /src
-RUN pip install --target="/install" /src
-
-# Copy minimal to main image (to keep as small as possible)
-FROM python:${PY_VERSION}-slim
-
-ARG PY_VERSION
-COPY . .
-COPY --from=builder /install /usr/local/lib/python${PY_VERSION}/site-packages
-#Install ffmpeg and clean
-RUN apt-get -y update
-RUN apt-get -y install --no-install-recommends ffmpeg
-RUN apt-get clean
-RUN rm -rf /var/lib/apt/lists/*
-
-RUN mkdir -p /opt/gpt3discord/etc
-COPY gpt3discord.py /opt/gpt3discord/bin/
-COPY image_optimizer_pretext.txt language_detection_pretext.txt conversation_starter_pretext.txt conversation_starter_pretext_minimal.txt /opt/gpt3discord/share/
-COPY openers /opt/gpt3discord/share/openers
-CMD ["python3", "/opt/gpt3discord/bin/gpt3discord.py"]
+# Run the command to start the application
+CMD ["python", "gptdiscord.py"]

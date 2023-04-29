@@ -146,7 +146,7 @@ As a last resort, you can try to run the bot using python in a basic way, with s
 ```shell
 cd GPT3Discord
 
-python3.9 gpt3discord.py  
+python3.9 gptdiscord.py  
 ```
   
 ### Docker and Docker Compose :  
