@@ -133,9 +133,7 @@ async def main():
     # Load the cog for the moderations service
     bot.add_cog(ModerationsService(bot, usage_service, model))
 
-    bot.add_cog(
-        LangChainAgentCog()
-    )
+
     # Load the main GPT3 Bot service
     bot.add_cog(
         GPT3ComCon(
@@ -196,7 +194,12 @@ async def main():
                 bot, model, usage_service, deletion_queue, bot.get_cog("GPT3ComCon")
             )
         )
+
         print("The Search service is enabled.")
+
+    bot.add_cog(
+        LangChainAgentCog( bot, model, usage_service, deletion_queue, bot.get_cog("GPT3ComCon"))
+    )
 
     bot.add_cog(
         TranscribeService(

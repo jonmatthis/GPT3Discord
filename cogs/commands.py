@@ -1305,11 +1305,97 @@ class Commands(discord.Cog, name="Commands"):
         default="agent",
 
     )
+    @discord.option(
+        name="message",
+        description="The message to send to the agent",
+        input_type=discord.SlashCommandOptionType.string,
+        default="Hello friend, tell me about yourself. tell me about something beautiful",
+    )
     @discord.guild_only()
     async def invoke(self,
                      ctx: discord.ApplicationContext,
                      agent: str,
+                     message: str
                      ):
         await self.langchain_agent_cog.run(
             ctx=ctx,
+            agent=agent,
+            message=message
+
+        )
+
+
+    @add_to_group("agent")
+    @discord.slash_command(
+        name="search",
+        description="Search google alongside GPT for something",
+        guild_ids=ALLOWED_GUILDS,
+        checks=[Check.check_search_roles()],
+    )
+    @discord.option(name="query", description="The query to search", required=True)
+    @discord.option(
+        name="scope",
+        description="How many top links to use for context",
+        required=False,
+        input_type=discord.SlashCommandOptionType.integer,
+        max_value=16,
+        min_value=1,
+    )
+    @discord.option(
+        name="nodes",
+        description="The higher the number, the more accurate the results, but more expensive",
+        required=False,
+        input_type=discord.SlashCommandOptionType.integer,
+        max_value=8,
+        min_value=1,
+    )
+    @discord.option(
+        name="deep",
+        description="Do a more intensive, long-running search",
+        required=False,
+        input_type=discord.SlashCommandOptionType.boolean,
+    )
+    @discord.option(
+        name="response_mode",
+        description="Response mode, doesn't work on deep searches",
+        guild_ids=ALLOWED_GUILDS,
+        required=False,
+        default="default",
+        choices=["default", "compact", "tree_summarize"],
+    )
+    @discord.option(
+        name="model",
+        description="The model to use for the request (querying, not composition)",
+        required=False,
+        default="gpt-3.5-turbo",
+        autocomplete=Settings_autocompleter.get_index_and_search_models,
+    )
+    @discord.option(
+        name="multistep",
+        description="Do a more intensive, multi-step query,",
+        required=False,
+        default=False,
+        input_type=discord.SlashCommandOptionType.boolean,
+    )
+    @discord.guild_only()
+    async def agent_search(
+            self,
+            ctx: discord.ApplicationContext,
+            query: str,
+            scope: int,
+            nodes: int,
+            deep: bool,
+            response_mode: str,
+            model: str,
+            multistep: bool,
+    ):
+        await self.langchain_agent_cog.search_command(
+            ctx,
+            query,
+            scope,
+            nodes,
+            deep,
+            response_mode,
+            model,
+            multistep,
         )
