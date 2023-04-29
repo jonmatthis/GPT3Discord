@@ -1,8 +1,8 @@
-import os
 import asyncio
+import logging
+import os
 import signal
 import sys
-import threading
 import traceback
 from pathlib import Path
 from platform import system
@@ -11,31 +11,29 @@ import discord
 import pinecone
 from pycord.multicog import apply_multicog
 
-from cogs.langchain_agent_cog import LangChainAgentCog
+from cogs.commands import Commands
+from cogs.image_service_cog import DrawDallEService
+from cogs.index_service_cog import IndexService
+from cogs.langchain_agents.langchain_agent_cog import LangChainAgentCog
+from cogs.moderations_service_cog import ModerationsService
+from cogs.prompt_optimizer_cog import ImgPromptOptimizer
 from cogs.search_service_cog import SearchService
 from cogs.text_service_cog import GPT3ComCon
-from cogs.image_service_cog import DrawDallEService
-from cogs.prompt_optimizer_cog import ImgPromptOptimizer
-from cogs.moderations_service_cog import ModerationsService
-from cogs.commands import Commands
 from cogs.transcription_service_cog import TranscribeService
 from cogs.translation_service_cog import TranslationService
-from cogs.index_service_cog import IndexService
 from models.deepl_model import TranslationModel
-from services.health_service import HealthService
-from services.pickle_service import Pickler
-
-from services.pinecone_service import PineconeService
-from services.deletion_service import Deletion
-from services.message_queue_service import Message
-from services.usage_service import UsageService
-from services.environment_service import EnvService
-
 from models.openai_model import Model
+from services.deletion_service import Deletion
+from services.environment_service import EnvService
+from services.health_service import HealthService
+from services.message_queue_service import Message
+from services.pickle_service import Pickler
+from services.pinecone_service import PineconeService
+from services.usage_service import UsageService
 
+logger = logging.getLogger(__name__)
 
 __version__ = "11.6.2"
-
 
 PID_FILE = Path("bot.pid")
 PROCESS = None
@@ -89,7 +87,6 @@ except Exception:
 pickle_queue = asyncio.Queue()
 asyncio.ensure_future(Pickler.process_pickle_queue(pickle_queue, 5, 1))
 
-
 #
 # Settings for the bot
 #
@@ -108,33 +105,22 @@ model = Model(usage_service)
 
 @bot.event  # Using self gives u
 async def on_ready():  # I can make self optional by
-    print("We have logged in as {0.user}".format(bot))
+    try:
+        print("We have logged in as {0.user}".format(bot))
+    except Exception as e:
+        logger.error(e)
+        raise e
 
 
 @bot.event
 async def on_application_command_error(
-    ctx: discord.ApplicationContext, error: discord.DiscordException
+        ctx: discord.ApplicationContext, error: discord.DiscordException
 ):
     if isinstance(error, discord.CheckFailure):
         pass
     else:
         raise error
 
-# @bot.slash_command(name = "skelly", description = "Chat with Skelly FreeMoCap")
-# async def skelly(ctx):
-#     await converser_cog.converse_command(
-#             ctx,
-#             None,
-#             None,
-#             None,
-#             None,
-#             "gpt-4",
-#             None,
-#             None,
-#             None,
-#             None,
-#             use_threads=True,
-#         )
 
 async def main():
     data_path = EnvService.environment_path_with_fallback("DATA_DIR")
@@ -148,20 +134,8 @@ async def main():
     bot.add_cog(ModerationsService(bot, usage_service, model))
 
     bot.add_cog(
-        LangChainAgentCog(
-            bot,
-            usage_service,
-            model,
-            message_queue,
-            deletion_queue,
-            debug_guild,
-            debug_channel,
-            data_path,
-            pinecone_service=pinecone_service,
-            pickle_queue=pickle_queue,
-        )
+        LangChainAgentCog()
     )
-
     # Load the main GPT3 Bot service
     bot.add_cog(
         GPT3ComCon(
@@ -214,8 +188,8 @@ async def main():
         print("The translation service is enabled.")
 
     if (
-        EnvService.get_google_search_api_key()
-        and EnvService.get_google_search_engine_id()
+            EnvService.get_google_search_api_key()
+            and EnvService.get_google_search_engine_id()
     ):
         bot.add_cog(
             SearchService(

@@ -1304,14 +1304,13 @@ class Commands(discord.Cog, name="Commands"):
         required=False,
     )
     @discord.guild_only()
-    async def invoke_skelly_agent(
+    async def invoke(
             self,
             ctx: discord.ApplicationContext,
             opener: str,
-            **kwargs,
+
     ):
-        await self.langchain_agent_cog.invoke_skelly_agent(
+        await self.langchain_agent_cog.run(
             ctx=ctx,
-            opener=opener,
-            **kwargs,
+
         )
